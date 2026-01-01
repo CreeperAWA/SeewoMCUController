@@ -1,0 +1,67 @@
+# 编译产物
+bin/
+obj/
+*.userprefs
+*.user
+.vs/
+.vscode/
+
+# .NET 相关
+**/[Dd]ebug/
+**/[Dd]ebugPublic/
+**/[Rr]elease/
+**/[Rr]eleases/
+x64/
+x86/
+**/bld/
+[Bb]uild/
+[Bb]uilds/
+**/[Ii]nt/
+**/[Oo]bj/
+
+# NuGet 包
+packages/
+*.nupkg
+
+# Visual Studio
+*.VC.db
+*.VC.VC.opendb
+*.sln.docstates
+*.userosscache
+*.suo
+
+# Rider
+[Rr]eSharper/
+*.ReSharper
+*.resharper
+_ReSharper.*
+*.[Rr]e[Ss]harper
+*.[Rr]e[Ss]harper.[Dd]e[Pp]rivate
+*.[Rr]e[Ss]harper.[Cc]ode[Aa]nalysis
+*.[Rr]e[Ss]harper.[Dd]e[Pp]rivate
+
+# Visual Studio Code
+.vscode/
+
+# 临时文件
+*~
+~$*
+*.tmp
+*.temp
+*.log
+
+# 依赖文件
+node_modules/
+npm-debug.log*
+
+# 项目特定文件
+Example/
+SeewoMCUController/bin/
+SeewoMCUController/obj/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
