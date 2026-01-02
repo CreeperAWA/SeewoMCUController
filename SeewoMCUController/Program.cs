@@ -110,28 +110,54 @@ class Program
 
         try
         {
-            string boardName = _mcuController.GetBoardName();
-            Console.WriteLine($"主板名称: {(string.IsNullOrEmpty(boardName) ? "未知" : boardName)}");
-
-            string ip = _mcuController.GetIP();
-            Console.WriteLine($"设备 IP:  {(string.IsNullOrEmpty(ip) ? "未知" : ip)}");
-
-            string uid = _mcuController.GetUid();
-            Console.WriteLine($"设备 UID: {(string.IsNullOrEmpty(uid) ? "未知" : uid.Trim())}");
-
-            int touchSize = _mcuController.GetCVTouchSize();
-            Console.WriteLine($"触摸屏:   {(touchSize > 0 ? touchSize + " 英寸" : "未知")}");
+            Console.WriteLine("[调试] 开始获取设备信息...");
             
-            // 添加更多设备信息
-            if (_mcuController.IsConnected)
-            {
-                Console.WriteLine($"设备 VID: 0x{_mcuController.GetDeviceVid():X4}");
-                Console.WriteLine($"设备 PID: 0x{_mcuController.GetDevicePid():X4}");
-                Console.WriteLine($"设备路径: {_mcuController.GetDevicePath()}");
-            }
+            // 首先获取所有信息
+            string boardName = _mcuController.GetBoardName();
+            Console.WriteLine($"[调试] 获取主板名称: {boardName}");
+            
+            string ip = _mcuController.GetIP();
+            Console.WriteLine($"[调试] 获取IP: {ip}");
+            
+            string uid = _mcuController.GetUid();
+            Console.WriteLine($"[调试] 获取UID: {uid}");
+            
+            int touchSize = _mcuController.GetCVTouchSize();
+            Console.WriteLine($"[调试] 获取触摸屏尺寸: {touchSize}");
+            
+            string mcuVersion = _mcuController.GetMcuVersion();
+            Console.WriteLine($"[调试] 获取MCU版本: {mcuVersion}");
+            
+             // 获取设备连接信息
+             string devicePath = "未知";
+             string vid = "未知";
+             string pid = "未知";
+             if (_mcuController.IsConnected)
+             {
+                 devicePath = _mcuController.GetDevicePath();
+                 vid = $"0x{_mcuController.GetDeviceVid():X4}";
+                 pid = $"0x{_mcuController.GetDevicePid():X4}";
+                 Console.WriteLine($"[调试] 获取设备连接信息: VID={vid}, PID={pid}, Path={devicePath}");
+             }
+
+            Console.WriteLine("[调试] 开始打印设备信息...");
+            
+            // 然后统一打印所有信息
+            Console.WriteLine($"主板名称: {(string.IsNullOrEmpty(boardName) ? "未知" : boardName)}");
+            Console.WriteLine($"设备 IP:  {(string.IsNullOrEmpty(ip) ? "未知" : ip)}");
+            Console.WriteLine($"设备 UID: {(string.IsNullOrEmpty(uid) ? "未知" : uid.Trim())}");
+            Console.WriteLine($"触摸屏:   {(touchSize > 0 ? touchSize + " 英寸" : "未知")}");
+            Console.WriteLine($"MCU 版本: {(string.IsNullOrEmpty(mcuVersion) ? "未知" : mcuVersion)}");
+            
+            Console.WriteLine($"设备 VID: {vid}");
+            Console.WriteLine($"设备 PID: {pid}");
+            Console.WriteLine($"设备路径: {devicePath}");
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[调试] 获取设备信息时发生异常: {ex.Message}");
+            Console.WriteLine($"[调试] 异常堆栈: {ex.StackTrace}");
+            
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"获取设备信息时出错: {ex.Message}");
             Console.ResetColor();
