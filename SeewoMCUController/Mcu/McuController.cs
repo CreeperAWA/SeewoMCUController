@@ -6,54 +6,34 @@ public class McuController
 {
     private const int DATA_LENGTH = 64;
 
-    public bool IsConnected => McuFinder.Usb.IsConnected;
-
+    public bool IsConnected => Cvte.Mcu.McuHunter.Usb.IsConnected;
+    
     // Use only the already-set DetectedMcu. Do NOT call FindAll or rescan on failure.
     private bool TrySendAndRead(byte[] cmd, out byte[] data, int timeoutMs = 10000)
     {
         data = new byte[DATA_LENGTH];
         try
         {
-            var detected = McuFinder.DetectedMcu;
-            if (detected == null)
+            if (!Cvte.Mcu.McuHunter.Write(cmd))
             {
-                Console.WriteLine("[调试] TrySendAndRead: 未设置 DetectedMcu，取消读取");
+                Console.WriteLine("[调试] TrySendAndRead: Write 失败");
                 return false;
             }
-
-            Console.WriteLine($"[调试] TrySendAndRead: 使用已检测接口 {detected.DeviceName}");
-
-            // Ensure connected to detected interface
-            if (!McuFinder.Usb.Connect(detected))
+            
+            Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
+                    
+            if (Cvte.Mcu.McuHunter.ReadWithShortTimeout(DATA_LENGTH, out byte[] readData))
             {
-                Console.WriteLine($"[调试] TrySendAndRead: 连接 DetectedMcu 失败: {detected.DeviceName}");
+                data = readData;
+                Console.WriteLine($"[调试] Read: received {data.Length} bytes: {BitConverter.ToString(data)}");
+                Console.WriteLine("[调试] TrySendAndRead: 读取成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("[调试] TrySendAndRead: 读取失败");
                 return false;
             }
-
-            // Use a short read timeout of 100ms per attempt as requested
-            int readTimeout = 100;
-
-            // Try up to 3 times: write then read with 100ms timeout
-            for (int attempt = 1; attempt <= 3; attempt++)
-            {
-                if (!McuFinder.Usb.Write(cmd))
-                {
-                    Console.WriteLine($"[调试] TrySendAndRead: Write 失败，尝试 #{attempt}");
-                    continue;
-                }
-
-                if (McuFinder.Usb.ReadWithTimeout(DATA_LENGTH, out data, readTimeout))
-                {
-                    Console.WriteLine($"[调试] TrySendAndRead: 读取成功 on attempt #{attempt}");
-                    return true;
-                }
-
-                Console.WriteLine($"[调试] TrySendAndRead: 读取超时/失败 on attempt #{attempt}");
-            }
-
-            // Do NOT attempt 0x00-leading variant at all
-            Console.WriteLine("[调试] TrySendAndRead: 所有三次常规尝试失败（未尝试 0x00 变体）");
-            return false;
         }
         catch (Exception ex)
         {
@@ -66,15 +46,14 @@ public class McuController
     {
         try
         {
-            // 使用完整的 FindAndConnection 逻辑，遍历所有设备直到找到可写的
-            bool result = McuFinder.FindAndConnection();
+            bool result = Cvte.Mcu.McuHunter.FindAndConnection();
             if (result)
             {
-                Console.WriteLine($"[调试] McuController 连接结果: {McuFinder.Usb.IsConnected}");
-                return McuFinder.Usb.IsConnected;
+                Console.WriteLine($"[调试] McuController 连接结果: {Cvte.Mcu.McuHunter.Usb.IsConnected}");
+                return Cvte.Mcu.McuHunter.Usb.IsConnected;
             }
 
-            Console.WriteLine("[调试] McuFinder.FindAndConnection() 返回 false");
+            Console.WriteLine("[调试] McuHunter.FindAndConnection() 返回 false");
             return false;
         }
         catch (Exception ex)
@@ -89,11 +68,11 @@ public class McuController
         try
         {
             Console.WriteLine($"[调试] 尝试连接指定设备: {usbId.DeviceName}");
-            bool connected = McuFinder.Usb.Connect(usbId.DeviceName);
+            bool connected = Cvte.Mcu.McuHunter.Usb.Connect(usbId.DeviceName);
             Console.WriteLine($"[调试] 连接结果: {connected}");
             if (connected)
             {
-                McuFinder.DetectedMcu = usbId;
+                Cvte.Mcu.McuHunter.DetectedMcu = usbId;
             }
             return connected;
         }
@@ -110,25 +89,7 @@ public class McuController
 
         try
         {
-            var cmd = McuCommand.GetBoardNameCommand;
-            if (!TrySendAndRead(cmd, out byte[] data, 10000))
-            {
-                Console.WriteLine("[调试] GetBoardName Write/Read 失败");
-                return string.Empty;
-            }
-
-            Console.WriteLine($"[调试] 读取到主板名称响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
-            if (data[6] == 52 && data[7] == 13) // Command response
-            {
-                short length = BitConverter.ToInt16(data, 8);
-                byte[] array2 = new byte[(int)length];
-                Buffer.BlockCopy(data, 10, array2, 0, (int)length);
-                string result = Encoding.UTF8.GetString(array2);
-                Console.WriteLine($"[调试] 成功获取主板名称: {result}");
-                return result;
-            }
-
-            Console.WriteLine($"[调试] GetBoardName 读取到的数据错误");
+            return Cvte.Mcu.Mcu.GetBoardName();
         }
         catch (Exception ex)
         {
@@ -145,26 +106,7 @@ public class McuController
 
         try
         {
-            var cmd = McuCommand.GetIPCommand;
-            for (int i = 0; i < 3; i++)
-            {
-                if (!TrySendAndRead(cmd, out byte[] data, 10000))
-                {
-                    Console.WriteLine($"[调试] 读取IP响应尝试 #{i+1} 失败");
-                    continue;
-                }
-
-                Console.WriteLine($"[调试] 读取到IP响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
-                if (data[6] == 52 && data[7] == 17) // Command response
-                {
-                    short length = BitConverter.ToInt16(data, 8);
-                    byte[] array2 = new byte[(int)length];
-                    Buffer.BlockCopy(data, 10, array2, 0, (int)length);
-                    string result = Encoding.UTF8.GetString(array2);
-                    Console.WriteLine($"[调试] 成功获取IP: {result}");
-                    return result;
-                }
-            }
+            return Cvte.Mcu.Mcu.GetIP();
         }
         catch (Exception ex)
         {
@@ -180,27 +122,7 @@ public class McuController
 
         try
         {
-            var cmd = McuCommand.GetUidCommand;
-            if (!TrySendAndRead(cmd, out byte[] data, 10000))
-            {
-                Console.WriteLine("[调试] GetUid Write/Read 失败");
-                return string.Empty;
-            }
-
-            Console.WriteLine($"[调试] 读取到UID响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
-            var sb = new StringBuilder();
-            if (data[6] == 0xC1) // Command response: 193
-            {
-                for (int i = 0; i < 12; i++)
-                {
-                    sb.Append(data[10 + i].ToString("x2") + " ");
-                }
-                string result = sb.ToString();
-                Console.WriteLine($"[调试] 成功获取UID: {result}");
-                return result;
-            }
-
-            Console.WriteLine("[调试] GetUid 数据错误");
+            return Cvte.Mcu.Mcu.GetUid();
         }
         catch (Exception ex)
         {
@@ -216,26 +138,7 @@ public class McuController
 
         try
         {
-            var cmd = McuCommand.GetMcuVersionCommand;
-            for (int i = 0; i < 3; i++)
-            {
-                Console.WriteLine($"[调试] 尝试读取触摸屏尺寸响应 #{i+1}");
-                if (!TrySendAndRead(cmd, out byte[] data, 10000))
-                {
-                    Console.WriteLine($"[调试] GetCVTouchSize ReadError, 尝试 #{i+1}");
-                    continue;
-                }
-
-                Console.WriteLine($"[调试] 读取到触摸屏尺寸响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
-                if (CVTouchAnalyzer.IsMatchCVTouchVersion(data))
-                {
-                    Console.WriteLine($"[调试] GetCVTouchSize: 读取到屏幕尺寸");
-                    return CVTouchAnalyzer.GetCVTouchSize(data);
-                }
-
-                Console.WriteLine($"[调试] GetCVTouchSize: 读取到数据格式错误");
-            }
-            Console.WriteLine($"[调试] GetCVTouchSize 读取到的数据错误");
+            return Cvte.Mcu.Mcu.GetCVTouchSize();
         }
         catch (Exception)
         {
@@ -251,38 +154,37 @@ public class McuController
 
         try
         {
-            var cmd = McuCommand.GetMcuVersionCommand;
-            for (int i = 0; i < 3; i++)
+            // 由于 Cvte.Mcu.Mcu 类中没有直接的 GetMcuVersion 方法，
+            // 我们使用 TrySendAndRead 方法发送 GetMcuVersionCommand
+            var cmd = SeewoMCUController.Mcu.McuCommand.GetMcuVersionCommand;
+            if (!TrySendAndRead(cmd, out byte[] data, 100))
             {
-                Console.WriteLine($"[调试] 尝试读取MCU版本响应 #{i+1}");
-                if (!TrySendAndRead(cmd, out byte[] data, 10000))
-                {
-                    Console.WriteLine($"[调试] 读取MCU版本响应超时或失败，尝试 #{i+1}");
-                    continue;
-                }
-
-                Console.WriteLine($"[调试] 读取到MCU版本响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
-                // MCU版本信息通常在响应的特定位置
-                if (data[6] == 0xC6) // 198
-                {
-                    // 解析版本信息
-                    var sb = new StringBuilder();
-                    for (int j = 16; j < data.Length && data[j] != 0; j++)
-                    {
-                        if (data[j] >= 32 && data[j] <= 126) // 可打印字符
-                        {
-                            sb.Append((char)data[j]);
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                    string result = sb.ToString();
-                    Console.WriteLine($"[调试] 成功获取MCU版本: {result}");
-                    return result;
-                }
+                Console.WriteLine("[调试] GetMcuVersion Write/Read 失败");
+                return string.Empty;
             }
+
+            Console.WriteLine($"[调试] 读取到MCU版本响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
+            // MCU版本信息通常在响应的特定位置
+            if (data[6] == 0xC6) // 198
+            {
+                // 解析版本信息
+                var sb = new StringBuilder();
+                for (int j = 16; j < data.Length && data[j] != 0; j++)
+                {
+                    if (data[j] >= 32 && data[j] <= 126) // 可打印字符
+                    {
+                        sb.Append((char)data[j]);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                string result = sb.ToString();
+                Console.WriteLine($"[调试] 成功获取MCU版本: {result}");
+                return result;
+            }
+            
             Console.WriteLine($"[调试] GetMcuVersion 读取到的数据错误");
         }
         catch (Exception ex)
@@ -300,16 +202,11 @@ public class McuController
 
         try
         {
-            if (!McuFinder.Usb.Write(McuCommand.AddVolumeCommand))
-                return false;
-
-            if (!McuFinder.Usb.Read(DATA_LENGTH, out byte[] data))
-                return false;
-
-            return data[6] == 0xA1; // Success response: 161
+            return Cvte.Mcu.Mcu.AddVolume();
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[调试] AddVolume 异常: {ex.Message}");
             return false;
         }
     }
@@ -320,16 +217,11 @@ public class McuController
 
         try
         {
-            if (!McuFinder.Usb.Write(McuCommand.DecreaseVolume))
-                return false;
-
-            if (!McuFinder.Usb.Read(DATA_LENGTH, out byte[] data))
-                return false;
-
-            return data[6] == 0xA1; // Success response: 161
+            return Cvte.Mcu.Mcu.DecreaseVolume();
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[调试] DecreaseVolume 异常: {ex.Message}");
             return false;
         }
     }
@@ -340,7 +232,7 @@ public class McuController
 
         try
         {
-            return McuFinder.Usb.Write(McuCommand.SwitchToHdmi1Command);
+            return Cvte.Mcu.Mcu.SwitchToHdmi1();
         }
         catch
         {
@@ -354,7 +246,7 @@ public class McuController
 
         try
         {
-            return McuFinder.Usb.Write(McuCommand.OpenAndroidPenCommand);
+            return Cvte.Mcu.Mcu.OpenAndroidPen();
         }
         catch
         {
@@ -368,7 +260,7 @@ public class McuController
 
         try
         {
-            return McuFinder.Usb.Write(McuCommand.ForbiddenAndroidPenCommand);
+            return Cvte.Mcu.Mcu.ForbiddenAndroidPen();
         }
         catch
         {
@@ -378,12 +270,12 @@ public class McuController
 
     public void Disconnect()
     {
-        McuFinder.Usb.Disconnect();
+        Cvte.Mcu.Mcu.CloseConnection();
     }
 
     public int GetDeviceVid()
     {
-        var detectedMcu = McuFinder.GetOrFindMcu();
+        var detectedMcu = Cvte.Mcu.McuHunter.GetOrFindMcu();
         if (detectedMcu != null)
         {
             return detectedMcu.Vid;
@@ -393,7 +285,7 @@ public class McuController
 
     public int GetDevicePid()
     {
-        var detectedMcu = McuFinder.GetOrFindMcu();
+        var detectedMcu = Cvte.Mcu.McuHunter.GetOrFindMcu();
         if (detectedMcu != null)
         {
             return detectedMcu.Pid;
@@ -403,11 +295,74 @@ public class McuController
 
     public string GetDevicePath()
     {
-        var detectedMcu = McuFinder.GetOrFindMcu();
+        var detectedMcu = Cvte.Mcu.McuHunter.GetOrFindMcu();
         if (detectedMcu != null)
         {
             return detectedMcu.DeviceName ?? "未知";
         }
         return "未知";
+    }
+
+    // 测试方法，用于验证MCU连接管理方式是否正常工作
+    public void TestMcuConnection()
+    {
+        Console.WriteLine("=== 开始测试MCU连接管理方式 ===");
+        
+        // 测试查找MCU设备
+        Console.WriteLine("1. 测试查找MCU设备...");
+        bool found = FindAndConnect();
+        Console.WriteLine($"   查找结果: {(found ? "成功" : "失败")}");
+        
+        if (found)
+        {
+            Console.WriteLine("2. 测试获取主板名称...");
+            string boardName = GetBoardName();
+            Console.WriteLine($"   主板名称: {boardName}");
+            
+            Console.WriteLine("3. 测试获取IP地址...");
+            string ip = GetIP();
+            Console.WriteLine($"   IP地址: {ip}");
+            
+            Console.WriteLine("4. 测试获取UID...");
+            string uid = GetUid();
+            Console.WriteLine($"   UID: {uid}");
+            
+            Console.WriteLine("5. 测试获取触摸屏尺寸...");
+            int touchSize = GetCVTouchSize();
+            Console.WriteLine($"   触摸屏尺寸: {touchSize}");
+            
+            Console.WriteLine("6. 测试获取MCU版本...");
+            string version = GetMcuVersion();
+            Console.WriteLine($"   MCU版本: {version}");
+            
+            Console.WriteLine("7. 测试音量控制...");
+            bool volUp = AddVolume();
+            Console.WriteLine($"   增加音量: {(volUp ? "成功" : "失败")}");
+            
+            bool volDown = DecreaseVolume();
+            Console.WriteLine($"   降低音量: {(volDown ? "成功" : "失败")}");
+            
+            Console.WriteLine("8. 测试HDMI切换...");
+            bool hdmi = SwitchToHdmi1();
+            Console.WriteLine($"   切换到HDMI1: {(hdmi ? "成功" : "失败")}");
+            
+            Console.WriteLine("9. 测试触控笔控制...");
+            bool openPen = OpenAndroidPen();
+            Console.WriteLine($"   启用触控笔: {(openPen ? "成功" : "失败")}");
+            
+            bool forbiddenPen = ForbiddenAndroidPen();
+            Console.WriteLine($"   禁用触控笔: {(forbiddenPen ? "成功" : "失败")}");
+            
+            Console.WriteLine("10. 测试设备信息...");
+            Console.WriteLine($"   设备VID: 0x{GetDeviceVid():X4}");
+            Console.WriteLine($"   设备PID: 0x{GetDevicePid():X4}");
+            Console.WriteLine($"   设备路径: {GetDevicePath()}");
+        }
+        else
+        {
+            Console.WriteLine("   未找到MCU设备，无法进行进一步测试");
+        }
+        
+        Console.WriteLine("=== MCU连接管理方式测试完成 ===");
     }
 }

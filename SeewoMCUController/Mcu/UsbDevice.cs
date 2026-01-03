@@ -164,6 +164,11 @@ namespace SeewoMCUController.Mcu
             }
         }
 
+        public bool ReadWithShortTimeout(int length, out byte[] data)
+        {
+            return ReadWithTimeout(length, out data, 100); // 100ms 超时
+        }
+
         public bool Write(byte[] data)
         {
             VerifyConnection();

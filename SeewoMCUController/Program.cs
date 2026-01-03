@@ -13,8 +13,18 @@ class Program
             // 检查是否有命令行参数
             if (args.Length > 0)
             {
-                // 命令行参数模式
-                ExecuteCommand(args);
+                // 检查是否是测试命令
+                if (args[0].Equals("test", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 运行测试
+                    Cvte.Mcu.McuHunterTest.TestMcuDevices();
+                    Cvte.Mcu.McuHunterTest.TestMcuConnection();
+                }
+                else
+                {
+                    // 命令行参数模式
+                    ExecuteCommand(args);
+                }
             }
             else
             {

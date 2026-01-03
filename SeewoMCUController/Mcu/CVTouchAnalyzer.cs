@@ -1,8 +1,8 @@
 using System.Text;
 
-namespace SeewoMCUController.Mcu;
+namespace Cvte.Mcu;
 
-internal static class CVTouchAnalyzer
+public static class CVTouchAnalyzer
 {
     public static bool IsMatchCVTouchVersion(byte[] data)
     {
