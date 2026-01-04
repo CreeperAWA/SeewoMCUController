@@ -379,53 +379,28 @@ namespace Cvte.Mcu
                 OnLog("WriteError", "AddVolume WriteError");
                 return false;
             }
-            byte[] array;
-            if (!McuHunter.ReadWithShortTimeout(DataLength, out array))
-            {
-                OnLog("ReadError", "AddVolume ReadError");
-                return false;
-            }
-            Console.WriteLine($"[调试] Read: received {array.Length} bytes: {BitConverter.ToString(array)}");
-            if (array[6] == 161)
-            {
-                OnLog("AddVolume", "增加音量成功");
-                return true;
-            }
-            OnLog("Error", "AddVolume 数据错误，返回的主命令是" + array[6].ToString());
-            return false;
+            
+            // 添加10毫秒延时，避免操作过于频繁
+            System.Threading.Thread.Sleep(10);
+            
+            OnLog("AddVolume", "增加音量指令已发送");
+            return true;
         }
 
         // 异步增加音量
         public static async Task<bool> AddVolumeAsync()
         {
-            bool flag;
             if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.AddVolumeCommand))
             {
                 OnLog("WriteError", "AddVolume WriteError");
-                flag = false;
+                return false;
             }
-            else
-            {
-                ValueTuple<bool, byte[]> result = await ReadAsync(-1, "");
-                bool item = result.Item1;
-                byte[] item2 = result.Item2;
-                if (!item)
-                {
-                    OnLog("ReadError", "AddVolume ReadError");
-                    flag = false;
-                }
-                else if (item2[6] == 161)
-                {
-                    OnLog("AddVolume", "增加音量成功");
-                    flag = true;
-                }
-                else
-                {
-                    OnLog("Error", "AddVolume 数据错误，返回的主命令是" + item2[6].ToString());
-                    flag = false;
-                }
-            }
-            return flag;
+            
+            // 添加10毫秒延时，避免操作过于频繁
+            await Task.Delay(10);
+            
+            OnLog("AddVolume", "增加音量指令已发送");
+            return true;
         }
 
         // 降低音量
@@ -438,53 +413,28 @@ namespace Cvte.Mcu
                 OnLog("WriteError", "DecreaseVolume WriteError");
                 return false;
             }
-            byte[] array;
-            if (!McuHunter.ReadWithShortTimeout(DataLength, out array))
-            {
-                OnLog("ReadError", "DecreaseVolume ReadError");
-                return false;
-            }
-            Console.WriteLine($"[调试] Read: received {array.Length} bytes: {BitConverter.ToString(array)}");
-            if (array[6] == 161)
-            {
-                OnLog("DecreaseVolume", "降低音量成功");
-                return true;
-            }
-            OnLog("Error", "DecreaseVolume 数据错误，返回的主命令是" + array[6].ToString());
-            return false;
+            
+            // 添加10毫秒延时，避免操作过于频繁
+            System.Threading.Thread.Sleep(10);
+            
+            OnLog("DecreaseVolume", "降低音量指令已发送");
+            return true;
         }
 
         // 异步降低音量
         public static async Task<bool> DecreaseVolumeAsync()
         {
-            bool flag;
             if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.DecreaseVolume))
             {
                 OnLog("WriteError", "DecreaseVolume WriteError");
-                flag = false;
+                return false;
             }
-            else
-            {
-                ValueTuple<bool, byte[]> result = await ReadAsync(-1, "");
-                bool item = result.Item1;
-                byte[] item2 = result.Item2;
-                if (!item)
-                {
-                    OnLog("ReadError", "DecreaseVolume ReadError");
-                    flag = false;
-                }
-                else if (item2[6] == 161)
-                {
-                    OnLog("DecreaseVolume", "降低音量成功");
-                    flag = true;
-                }
-                else
-                {
-                    OnLog("Error", "DecreaseVolume 数据错误，返回的主命令是" + item2[6].ToString());
-                    flag = false;
-                }
-            }
-            return flag;
+            
+            // 添加10毫秒延时，避免操作过于频繁
+            await Task.Delay(10);
+            
+            OnLog("DecreaseVolume", "降低音量指令已发送");
+            return true;
         }
 
         // 写入数据（已过时，建议使用McuHunter.Write）
