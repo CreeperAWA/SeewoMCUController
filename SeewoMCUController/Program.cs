@@ -6,15 +6,20 @@ class Program
 {
     private static McuController? _mcuController;
 
+    static string? devicePath = null;
+    
     static void Main(string[] args)
     {
         try
         {
+            // 解析命令行参数
+            var remainingArgs = ParseCommandLineArgs(args);
+            
             // 检查是否有命令行参数
-            if (args.Length > 0)
+            if (remainingArgs.Length > 0)
             {
                 // 检查是否是测试命令
-                if (args[0].Equals("test", StringComparison.OrdinalIgnoreCase))
+                if (remainingArgs[0].Equals("test", StringComparison.OrdinalIgnoreCase))
                 {
                     // 运行测试
                     Cvte.Mcu.McuHunterTest.TestMcuDevices();
@@ -23,7 +28,7 @@ class Program
                 else
                 {
                     // 命令行参数模式
-                    ExecuteCommand(args);
+                    ExecuteCommand(remainingArgs);
                 }
             }
             else
@@ -39,6 +44,54 @@ class Program
             Console.ResetColor();
         }
     }
+    
+    /// <summary>
+    /// 解析命令行参数，提取设备路径参数
+    /// </summary>
+    /// <param name="args">原始命令行参数</param>
+    /// <returns>除设备路径参数外的其他参数</returns>
+    static string[] ParseCommandLineArgs(string[] args)
+    {
+        var remainingArgs = new List<string>();
+        for (int i = 0; i < args.Length; i++)
+        {
+            string arg = args[i].ToLower();
+            
+            if (arg == "--device-path" || arg == "-d")
+            {
+                // 下一个参数是设备路径
+                if (i + 1 < args.Length)
+                {
+                    devicePath = args[i + 1];
+                    i++; // 跳过设备路径值
+                }
+                else
+                {
+                    Console.WriteLine("错误: --device-path/-d 参数需要指定设备路径");
+                    Environment.Exit(1);
+                }
+            }
+            else if (arg.StartsWith("--device-path=") || arg.StartsWith("-d="))
+            {
+                // 参数和值在同一个字符串中
+                if (arg.StartsWith("--device-path="))
+                {
+                    devicePath = arg.Substring("--device-path=".Length);
+                }
+                else
+                {
+                    devicePath = arg.Substring("-d=".Length);
+                }
+            }
+            else
+            {
+                // 非设备路径参数，添加到剩余参数列表
+                remainingArgs.Add(args[i]);
+            }
+        }
+        
+        return remainingArgs.ToArray();
+    }
 
     static void InteractiveMode()
     {
@@ -48,7 +101,7 @@ class Program
 
         // 查找并连接 MCU 设备
         Console.WriteLine("正在查找 MCU 设备...");
-        _mcuController = new McuController();
+        _mcuController = new McuController(devicePath);
         
         if (!_mcuController.FindAndConnect())
         {
@@ -102,6 +155,13 @@ class Program
             if (input.Equals("info", StringComparison.OrdinalIgnoreCase))
             {
                 DisplayDeviceInfo();
+                continue;
+            }
+            
+            // 处理设备枚举命令
+            if (input.Equals("list", StringComparison.OrdinalIgnoreCase))
+            {
+                EnumerateInteractiveDevices();
                 continue;
             }
 
@@ -175,6 +235,26 @@ class Program
 
         Console.WriteLine("==========================================");
     }
+    
+    static void EnumerateInteractiveDevices()
+    {
+        if (_mcuController == null) return;
+        
+        var devices = _mcuController.EnumerateDevices();
+        
+        if (devices.Count == 0)
+        {
+            Console.WriteLine("未找到任何MCU设备");
+            return;
+        }
+        
+        Console.WriteLine($"找到 {devices.Count} 个MCU设备:");
+        for (int i = 0; i < devices.Count; i++)
+        {
+            var device = devices[i];
+            Console.WriteLine($"[{i + 1}] VID:0x{device.Vid:X4}, PID:0x{device.Pid:X4}, 路径: {device.DeviceName}");
+        }
+    }
 
         static void DisplayHelp()
         {
@@ -187,6 +267,7 @@ class Program
             Console.WriteLine("  pen on          - 启用触控笔");
             Console.WriteLine("  pen off         - 禁用触控笔");
             Console.WriteLine("  info            - 重新显示设备信息");
+            Console.WriteLine("  list            - 列出所有检测到的MCU设备");
             Console.WriteLine("  help / ?        - 显示此帮助信息");
             Console.WriteLine("  exit / quit     - 退出程序");
         }
@@ -424,7 +505,7 @@ class Program
     static void ExecuteCommand(string[] args)
     {
         // 查找并连接 MCU 设备
-        _mcuController = new McuController();
+        _mcuController = new McuController(devicePath);
         
         if (!_mcuController.FindAndConnect())
         {
@@ -482,6 +563,13 @@ class Program
                         case "-info":
                         case "--info":
                             DisplayDeviceInfo();
+                            break;
+
+                        case "-list":
+                        case "--list":
+                        case "-enumerate":
+                        case "--enumerate":
+                            EnumerateDevices();
                             break;
 
                         case "-h":
@@ -612,10 +700,40 @@ class Program
         Console.WriteLine("  -pen on           启用触控笔");
         Console.WriteLine("  -pen off          禁用触控笔");
         Console.WriteLine("  -info             显示设备信息");
+        Console.WriteLine("  -list             列出所有检测到的MCU设备");
+        Console.WriteLine("  -d, --device-path 路径  指定要使用的MCU设备路径");
         Console.WriteLine("  -h, --help        显示此帮助信息\n");
         Console.WriteLine("示例:");
         Console.WriteLine("  SeewoMCUController.exe -vol +1");
         Console.WriteLine("  SeewoMCUController.exe -hdmi");
         Console.WriteLine("  SeewoMCUController.exe -pen off");
+        Console.WriteLine("  SeewoMCUController.exe --device-path \"\\\\?\\hid#vid_1fe7&pid_0004#6&314b457f&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}\" -vol +1");
+        Console.WriteLine("  SeewoMCUController.exe -list");
+    }
+    
+    /// <summary>
+    /// 枚举并显示所有检测到的MCU设备
+    /// </summary>
+    static void EnumerateDevices()
+    {
+        if (_mcuController == null)
+        {
+            _mcuController = new McuController();
+        }
+        
+        var devices = _mcuController.EnumerateDevices();
+        
+        if (devices.Count == 0)
+        {
+            Console.WriteLine("未找到任何MCU设备");
+            return;
+        }
+        
+        Console.WriteLine($"找到 {devices.Count} 个MCU设备:");
+        for (int i = 0; i < devices.Count; i++)
+        {
+            var device = devices[i];
+            Console.WriteLine($"[{i + 1}] VID:0x{device.Vid:X4}, PID:0x{device.Pid:X4}, 路径: {device.DeviceName}");
+        }
     }
 }

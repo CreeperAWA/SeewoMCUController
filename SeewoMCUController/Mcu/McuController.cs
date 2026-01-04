@@ -8,6 +8,16 @@ public class McuController
 
     public bool IsConnected => Cvte.Mcu.McuHunter.Usb.IsConnected;
     
+    private string? _devicePath;
+    
+    public McuController(string? devicePath = null)
+    {
+        _devicePath = devicePath;
+    }
+    
+    // 保留无参构造函数以确保向后兼容
+    public McuController() : this(null) { }
+    
     // Use only the already-set DetectedMcu. Do NOT call FindAll or rescan on failure.
     private bool TrySendAndRead(byte[] cmd, out byte[] data, int timeoutMs = 10000)
     {
@@ -46,6 +56,67 @@ public class McuController
     {
         try
         {
+            // 如果指定了设备路径，优先使用指定的设备路径
+            if (!string.IsNullOrEmpty(_devicePath) && _devicePath != "auto")
+            {
+                Console.WriteLine($"正在连接指定设备路径: {_devicePath}");
+                var usbId = new UsbId(_devicePath, 0); // 使用默认版本号
+                bool connected = FindAndConnect(usbId);
+                
+                if (!connected)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"错误: 无法连接到指定的设备路径: {_devicePath}");
+                    Console.ResetColor();
+                    return false;
+                }
+                
+                Console.WriteLine($"[调试] McuController 连接结果: {Cvte.Mcu.McuHunter.Usb.IsConnected}");
+                return Cvte.Mcu.McuHunter.Usb.IsConnected;
+            }
+            
+            // 获取所有可用的MCU设备
+            var allDevices = Cvte.Mcu.McuHunter.FindAll();
+            
+            if (allDevices.Count == 0)
+            {
+                Console.WriteLine("[调试] 未找到任何MCU设备");
+                return false;
+            }
+            
+            // 如果有多个设备，提示用户选择
+            if (allDevices.Count > 1)
+            {
+                Console.WriteLine($"发现 {allDevices.Count} 个MCU设备:");
+                for (int i = 0; i < allDevices.Count; i++)
+                {
+                    var device = allDevices[i];
+                    Console.WriteLine($"  [{i + 1}] VID:0x{device.Vid:X4}, PID:0x{device.Pid:X4}, 路径: {device.DeviceName}");
+                }
+                
+                Console.Write($"请选择设备 (1-{allDevices.Count}) 或按回车自动选择第一个: ");
+                string? input = Console.ReadLine();
+                
+                if (int.TryParse(input, out int selection) && selection >= 1 && selection <= allDevices.Count)
+                {
+                    // 用户选择了特定设备
+                    var selectedDevice = allDevices[selection - 1];
+                    bool connected = FindAndConnect(selectedDevice);
+                    if (connected)
+                    {
+                        Console.WriteLine($"[调试] 已连接到选择的设备: {selectedDevice.DeviceName}");
+                        Console.WriteLine($"[调试] McuController 连接结果: {Cvte.Mcu.McuHunter.Usb.IsConnected}");
+                        return Cvte.Mcu.McuHunter.Usb.IsConnected;
+                    }
+                }
+                else
+                {
+                    // 用户按回车或输入无效，使用第一个设备
+                    Console.WriteLine("使用第一个设备...");
+                }
+            }
+            
+            // 如果只有一个设备或者用户没有选择特定设备，尝试自动连接
             bool result = Cvte.Mcu.McuHunter.FindAndConnection();
             if (result)
             {
@@ -364,5 +435,23 @@ public class McuController
         }
         
         Console.WriteLine("=== MCU连接管理方式测试完成 ===");
+    }
+    
+    /// <summary>
+    /// 枚举所有检测到的MCU设备
+    /// </summary>
+    /// <returns>设备列表</returns>
+    public List<UsbId> EnumerateDevices()
+    {
+        try
+        {
+            var allDevices = Cvte.Mcu.McuHunter.FindAll();
+            return allDevices;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[调试] 枚举设备时发生异常: {ex.Message}");
+            return new List<UsbId>();
+        }
     }
 }
