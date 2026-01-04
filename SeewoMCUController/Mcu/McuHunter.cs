@@ -89,13 +89,18 @@ namespace Cvte.Mcu
                 {
                     flag = false;
                 }
-                else if (!Usb.Write(array) && !FindAndConnection())
-                {
-                    flag = false;
-                }
                 else
                 {
+                    // 尝试写入，如果失败则重新查找连接并再次尝试
                     flag = Usb.Write(array);
+                    if (!flag)
+                    {
+                        // 如果写入失败，尝试重新查找连接并再次写入
+                        if (FindAndConnection())
+                        {
+                            flag = Usb.Write(array);
+                        }
+                    }
                 }
             }
             catch (Exception)
@@ -326,13 +331,18 @@ namespace Cvte.Mcu
                 {
                     flag = false;
                 }
-                else if (!Usb.Write(array) && !FindAndConnection())
-                {
-                    flag = false;
-                }
                 else
                 {
+                    // 尝试写入，如果失败则重新查找连接并再次尝试
                     flag = Usb.Write(array);
+                    if (!flag)
+                    {
+                        // 如果写入失败，尝试重新查找连接并再次写入
+                        if (FindAndConnection())
+                        {
+                            flag = Usb.Write(array);
+                        }
+                    }
                 }
             }
             catch (Exception)
