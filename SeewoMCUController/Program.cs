@@ -1,4 +1,5 @@
-﻿using SeewoMCUController.Mcu;
+using SeewoMCUController.Mcu;
+using Cvte.Mcu;
 
 namespace SeewoMCUController;
 
@@ -22,8 +23,8 @@ class Program
                 if (remainingArgs[0].Equals("test", StringComparison.OrdinalIgnoreCase))
                 {
                     // 运行测试
-                    Cvte.Mcu.McuHunterTest.TestMcuDevices();
-                    Cvte.Mcu.McuHunterTest.TestMcuConnection();
+                    McuHunterTest.TestMcuDevices();
+                    McuHunterTest.TestMcuConnection();
                 }
                 else
                 {
@@ -114,7 +115,7 @@ class Program
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("✓ MCU 设备已连接\n");
+        Console.WriteLine("MCU 设备已连接\n");
         Console.ResetColor();
 
         // 显示设备信息
@@ -338,13 +339,13 @@ class Program
             if (_mcuController.AddVolume())
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ 音量增加成功");
+                Console.WriteLine("音量增加成功");
                 Console.ResetColor();
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("✗ 音量增加失败");
+                Console.WriteLine("音量增加失败");
                 Console.ResetColor();
             }
             return;
@@ -355,13 +356,13 @@ class Program
             if (_mcuController.DecreaseVolume())
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ 音量减少成功");
+                Console.WriteLine("音量减少成功");
                 Console.ResetColor();
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("✗ 音量减少失败");
+                Console.WriteLine("音量减少失败");
                 Console.ResetColor();
             }
             return;
@@ -383,7 +384,7 @@ class Program
                 if (success == count)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine($"✓ 音量增加 {count} 级成功");
+                    Console.WriteLine($"音量增加 {count} 级成功");
                     Console.ResetColor();
                 }
                 else
@@ -415,7 +416,7 @@ class Program
                 if (success == count)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine($"✓ 音量减少 {count} 级成功");
+                    Console.WriteLine($"音量减少 {count} 级成功");
                     Console.ResetColor();
                 }
                 else
@@ -447,13 +448,13 @@ class Program
         if (_mcuController.SwitchToHdmi1())
         {
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("✓ 已切换到 HDMI1");
+            Console.WriteLine("已切换到 HDMI1");
             Console.ResetColor();
         }
         else
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("✗ 切换到 HDMI1 失败");
+            Console.WriteLine("切换到 HDMI1 失败");
             Console.ResetColor();
         }
     }
@@ -469,13 +470,13 @@ class Program
             if (_mcuController.OpenAndroidPen())
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ 触控笔已启用");
+                Console.WriteLine("触控笔已启用");
                 Console.ResetColor();
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("✗ 启用触控笔失败");
+                Console.WriteLine("启用触控笔失败");
                 Console.ResetColor();
             }
         }
@@ -484,13 +485,13 @@ class Program
             if (_mcuController.ForbiddenAndroidPen())
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ 触控笔已禁用");
+                Console.WriteLine("触控笔已禁用");
                 Console.ResetColor();
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("✗ 禁用触控笔失败");
+                Console.WriteLine("禁用触控笔失败");
                 Console.ResetColor();
             }
         }

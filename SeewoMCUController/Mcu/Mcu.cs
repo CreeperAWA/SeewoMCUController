@@ -1,27 +1,39 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
+using SeewoMCUController.Mcu;
 
 namespace Cvte.Mcu
 {
+    /// <summary>
+    /// MCU设备控制类，提供对MCU设备的各种控制和查询功能
+    /// </summary>
     public static class Mcu
     {
-        // 日志回调
+        /// <summary>
+        /// 日志回调，用于记录操作日志
+        /// </summary>
         public static Action<string, string> Log { get; set; } = (log, msg) => { };
 
-        // 查找MCU设备
+        /// <summary>
+        /// 查找MCU设备
+        /// </summary>
+        /// <returns>是否找到MCU设备</returns>
         public static bool FindMcu()
         {
             return McuHunter.FindMcu();
         }
 
-        // 禁用安卓触控笔
+        /// <summary>
+        /// 禁用安卓触控笔
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static bool ForbiddenAndroidPen()
         {
             bool flag;
             try
             {
-                flag = McuHunter.Write(SeewoMCUController.Mcu.McuCommand.ForbiddenAndroidPenCommand);
+                flag = McuHunter.Write(McuCommand.ForbiddenAndroidPenCommand);
             }
             catch
             {
@@ -30,13 +42,16 @@ namespace Cvte.Mcu
             return flag;
         }
 
-        // 启用安卓触控笔
+        /// <summary>
+        /// 启用安卓触控笔
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static bool OpenAndroidPen()
         {
             bool flag;
             try
             {
-                flag = McuHunter.Write(SeewoMCUController.Mcu.McuCommand.OpenAndroidPenCommand);
+                flag = McuHunter.Write(McuCommand.OpenAndroidPenCommand);
             }
             catch
             {
@@ -45,13 +60,16 @@ namespace Cvte.Mcu
             return flag;
         }
 
-        // 获取CV触摸屏尺寸
+        /// <summary>
+        /// 获取CV触摸屏尺寸
+        /// </summary>
+        /// <returns>触摸屏尺寸（英寸），如果获取失败返回-1</returns>
         public static int GetCVTouchSize()
         {
             int num;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetMcuVersionCommand))
+                if (!McuHunter.Write(McuCommand.GetMcuVersionCommand))
                 {
                     OnLog("WriteError", "GetCVTouchSize WriteError");
                     num = -1;
@@ -83,13 +101,16 @@ namespace Cvte.Mcu
             return num;
         }
 
-        // 异步获取CV触摸屏尺寸
+        /// <summary>
+        /// 异步获取CV触摸屏尺寸
+        /// </summary>
+        /// <returns>触摸屏尺寸（英寸），如果获取失败返回-1</returns>
         public static async Task<int> GetCVTouchSizeAsync()
         {
             int num;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetMcuVersionCommand))
+                if (!McuHunter.Write(McuCommand.GetMcuVersionCommand))
                 {
                     OnLog("WriteError", "GetCVTouchSize WriteError");
                     num = -1;
@@ -123,13 +144,16 @@ namespace Cvte.Mcu
             return num;
         }
 
-        // 切换到HDMI1
+        /// <summary>
+        /// 切换到HDMI1
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static bool SwitchToHdmi1()
         {
             bool flag;
             try
             {
-                flag = McuHunter.Write(SeewoMCUController.Mcu.McuCommand.SwitchToHdmi1Command);
+                flag = McuHunter.Write(McuCommand.SwitchToHdmi1Command);
             }
             catch
             {
@@ -138,13 +162,16 @@ namespace Cvte.Mcu
             return flag;
         }
 
-        // 获取主板名称
+        /// <summary>
+        /// 获取主板名称
+        /// </summary>
+        /// <returns>主板名称字符串</returns>
         public static string GetBoardName()
         {
             string text;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetBoardNameCommand))
+                if (!McuHunter.Write(McuCommand.GetBoardNameCommand))
                 {
                     OnLog("WriteError", "GetBoardName WriteError");
                     text = string.Empty;
@@ -180,13 +207,16 @@ namespace Cvte.Mcu
             return text;
         }
 
-        // 异步获取主板名称
+        /// <summary>
+        /// 异步获取主板名称
+        /// </summary>
+        /// <returns>主板名称字符串</returns>
         public static async Task<string> GetBoardNameAsync()
         {
             string text;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetBoardNameCommand))
+                if (!McuHunter.Write(McuCommand.GetBoardNameCommand))
                 {
                     OnLog("WriteError", "GetBoardName WriteError");
                     text = string.Empty;
@@ -224,13 +254,16 @@ namespace Cvte.Mcu
             return text;
         }
 
-        // 获取IP地址
+        /// <summary>
+        /// 获取设备IP地址
+        /// </summary>
+        /// <returns>IP地址字符串</returns>
         public static string GetIP()
         {
             string text;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetIPCommand))
+                if (!McuHunter.Write(McuCommand.GetIPCommand))
                 {
                     text = string.Empty;
                 }
@@ -262,13 +295,16 @@ namespace Cvte.Mcu
             return text;
         }
 
-        // 异步获取IP地址
+        /// <summary>
+        /// 异步获取设备IP地址
+        /// </summary>
+        /// <returns>IP地址字符串</returns>
         public static async Task<string> GetIPAsync()
         {
             string text;
             try
             {
-                if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetIPCommand))
+                if (!McuHunter.Write(McuCommand.GetIPCommand))
                 {
                     text = string.Empty;
                 }
@@ -302,10 +338,13 @@ namespace Cvte.Mcu
             return text;
         }
 
-        // 获取UID
+        /// <summary>
+        /// 获取设备UID
+        /// </summary>
+        /// <returns>UID字符串</returns>
         public static string GetUid()
         {
-            if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetUidCommand))
+            if (!McuHunter.Write(McuCommand.GetUidCommand))
             {
                 OnLog("WriteError", "GetUid WriteError");
                 return string.Empty;
@@ -329,11 +368,14 @@ namespace Cvte.Mcu
             return "";
         }
 
-        // 异步获取UID
+        /// <summary>
+        /// 异步获取设备UID
+        /// </summary>
+        /// <returns>UID字符串</returns>
         public static async Task<string> GetUidAsync()
         {
             string text;
-            if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.GetUidCommand))
+            if (!McuHunter.Write(McuCommand.GetUidCommand))
             {
                 OnLog("WriteError", "GetUid WriteError");
                 text = string.Empty;
@@ -369,10 +411,13 @@ namespace Cvte.Mcu
             return text;
         }
 
-        // 增加音量
+        /// <summary>
+        /// 增加音量
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static bool AddVolume()
         {
-            var cmd = SeewoMCUController.Mcu.McuCommand.AddVolumeCommand;
+            var cmd = McuCommand.AddVolumeCommand;
             Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
             if (!McuHunter.Write(cmd))
             {
@@ -387,10 +432,13 @@ namespace Cvte.Mcu
             return true;
         }
 
-        // 异步增加音量
+        /// <summary>
+        /// 异步增加音量
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static async Task<bool> AddVolumeAsync()
         {
-            if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.AddVolumeCommand))
+            if (!McuHunter.Write(McuCommand.AddVolumeCommand))
             {
                 OnLog("WriteError", "AddVolume WriteError");
                 return false;
@@ -403,10 +451,13 @@ namespace Cvte.Mcu
             return true;
         }
 
-        // 降低音量
+        /// <summary>
+        /// 降低音量
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static bool DecreaseVolume()
         {
-            var cmd = SeewoMCUController.Mcu.McuCommand.DecreaseVolume;
+            var cmd = McuCommand.DecreaseVolume;
             Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
             if (!McuHunter.Write(cmd))
             {
@@ -421,10 +472,13 @@ namespace Cvte.Mcu
             return true;
         }
 
-        // 异步降低音量
+        /// <summary>
+        /// 异步降低音量
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public static async Task<bool> DecreaseVolumeAsync()
         {
-            if (!McuHunter.Write(SeewoMCUController.Mcu.McuCommand.DecreaseVolume))
+            if (!McuHunter.Write(McuCommand.DecreaseVolume))
             {
                 OnLog("WriteError", "DecreaseVolume WriteError");
                 return false;
@@ -437,21 +491,35 @@ namespace Cvte.Mcu
             return true;
         }
 
-        // 写入数据（已过时，建议使用McuHunter.Write）
+        /// <summary>
+        /// 写入数据（已过时，建议使用McuHunter.Write）
+        /// </summary>
+        /// <param name="array">要写入的数据</param>
+        /// <returns>操作是否成功</returns>
         [Obsolete("请使用McuHunter.Write")]
         public static bool Write(byte[] array)
         {
             return McuHunter.WriteToDevice(array);
         }
 
-        // 读取数据（已过时，建议使用McuHunter.Read）
+        /// <summary>
+        /// 读取数据（已过时，建议使用McuHunter.Read）
+        /// </summary>
+        /// <param name="dataLength">数据长度</param>
+        /// <param name="data">读取到的数据</param>
+        /// <returns>操作是否成功</returns>
         [Obsolete("请使用McuHunter.Read")]
         public static bool Read(int dataLength, out byte[] data)
         {
             return McuHunter.ReadFromDevice(dataLength, out data);
         }
 
-        // 异步读取数据（已过时，建议使用McuHunter.TryReadAsync）
+        /// <summary>
+        /// 异步读取数据（已过时，建议使用McuHunter.TryReadAsync）
+        /// </summary>
+        /// <param name="dataLength">数据长度</param>
+        /// <param name="methodName">方法名称</param>
+        /// <returns>包含操作结果和数据的元组</returns>
         [Obsolete("请使用 McuHunter.TryReadAsync")]
         public static async Task<ValueTuple<bool, byte[]>> ReadAsync(int dataLength = -1, string methodName = "")
         {
@@ -468,14 +536,20 @@ namespace Cvte.Mcu
             return asyncOp.Result;
         }
 
-        // 关闭连接（已过时，建议使用McuHunter.CloseConnection）
+        /// <summary>
+        /// 关闭连接（已过时，建议使用McuHunter.CloseConnection）
+        /// </summary>
         [Obsolete("请使用 McuHunter.CloseConnection")]
         public static void CloseConnection()
         {
             McuHunter.CloseDeviceConnection();
         }
 
-        // 内部日志方法
+        /// <summary>
+        /// 内部日志方法
+        /// </summary>
+        /// <param name="log">日志类型</param>
+        /// <param name="msg">日志消息</param>
         private static void OnLog(string log, string msg)
         {
             Action<string, string> log2 = Log;
