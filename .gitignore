@@ -43,6 +43,9 @@ _ReSharper.*
 # Visual Studio Code
 .vscode/
 
+# Qoder
+.qoder/
+
 # 临时文件
 *~
 ~$*
