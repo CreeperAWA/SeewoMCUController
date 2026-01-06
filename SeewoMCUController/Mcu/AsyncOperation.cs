@@ -26,7 +26,7 @@ namespace Cvte.Mcu
                     {
                         throw new InvalidOperationException("Operation not completed yet");
                     }
-                    return _result;
+                    return _result!;
                 }
             }
         }
@@ -41,7 +41,7 @@ namespace Cvte.Mcu
                     {
                         throw new InvalidOperationException("Operation not completed yet");
                     }
-                    return _exception;
+                    return _exception!;
                 }
             }
         }

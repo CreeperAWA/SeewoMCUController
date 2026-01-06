@@ -67,7 +67,7 @@ public static class HidDeviceDiscovery
         }
         else
         {
-            Console.WriteLine("[调试] SetupDiGetClassDevs 返回 -1，失败");
+
         }
         
         return devices;

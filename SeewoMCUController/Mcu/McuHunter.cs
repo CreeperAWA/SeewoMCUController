@@ -110,8 +110,9 @@ namespace Cvte.Mcu
             return flag;
         }
 
-        public static bool Write(UsbId usbId, byte[] array)
+        public static bool Write(UsbId? usbId, byte[] array)
         {
+            if (usbId == null) return false;
             UsbDevice usb = new UsbDevice();
             return usb.Connect(usbId) && usb.Write(array);
         }
@@ -233,13 +234,13 @@ namespace Cvte.Mcu
 
         private static bool CheckUsbDetectedMcu(UsbId usbId)
         {
-            if (IsUsbIdEquals(DetectedMcu, usbId))
+            if (DetectedMcu != null && IsUsbIdEquals(DetectedMcu, usbId))
             {
                 return true;
             }
             foreach (var definedUsbId in DefineDeviceMcu)
             {
-                if (IsUsbIdEquals(definedUsbId, usbId))
+                if (definedUsbId != null && IsUsbIdEquals(definedUsbId, usbId))
                 {
                     return true;
                 }
@@ -352,8 +353,9 @@ namespace Cvte.Mcu
             return flag;
         }
 
-        public static bool WriteToDevice(UsbId usbId, byte[] array)
+        public static bool WriteToDevice(UsbId? usbId, byte[] array)
         {
+            if (usbId == null) return false;
             UsbDevice usb = new UsbDevice();
             return usb.Connect(usbId) && usb.Write(array);
         }
@@ -401,7 +403,7 @@ namespace Cvte.Mcu
                 }
                 catch (ThreadAbortException)
                 {
-                    Thread.ResetAbort();
+                    // Thread.ResetAbort() 已过时，不再调用
                 }
             });
             thread.Start();

@@ -92,7 +92,7 @@ namespace SeewoMCUController.Mcu
                     bool finished = task.Wait(TimeSpan.FromMilliseconds(remaining));
                     if (!finished)
                     {
-                        Console.WriteLine($"[调试] ReadWithTimeout 单次读超时，已等待 {remaining}ms");
+
                         continue;
                     }
 
@@ -111,7 +111,7 @@ namespace SeewoMCUController.Mcu
                     // Debug: show first bytes collected
                     try
                     {
-                        Console.WriteLine($"[调试] ReadWithTimeout 收到 {bytesReadCount} bytes, 缓冲总大小 {buffer.Count}: {BitConverter.ToString(buffer.Take(Math.Min(16, buffer.Count)).ToArray())}...");
+
                     }
                     catch { }
 
@@ -154,12 +154,12 @@ namespace SeewoMCUController.Mcu
                     // continue until timeout
                 }
 
-                Console.WriteLine($"[调试] ReadWithTimeout 超时: {timeoutMs}ms, 已收 {0} bytes");
+
                 return false;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"[调试] ReadWithTimeout 异常: {ex.Message}");
+
                 return false;
             }
         }
@@ -176,7 +176,7 @@ namespace SeewoMCUController.Mcu
             bool ok = WindowsApi.WriteFile(_hWriteFile!, data, (uint)data.Length, ref bytesWritten, IntPtr.Zero);
             try
             {
-                Console.WriteLine($"[调试] Write: sent {bytesWritten} bytes: {BitConverter.ToString(data, 0, (int)Math.Min(bytesWritten, (uint)data.Length))}");
+
             }
             catch { }
             if (ok)

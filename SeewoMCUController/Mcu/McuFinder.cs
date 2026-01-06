@@ -20,24 +20,24 @@ public static class McuFinder
     {
         try
         {
-            Console.WriteLine("[调试] FindMcu() 开始");
+
             var devices = FindAll();
-            Console.WriteLine($"[调试] FindAll() 返回 {devices.Count} 个设备");
+
             return devices.Any();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] FindMcu() 异常: {ex.Message}");
-            Console.WriteLine($"[调试] 堆栈: {ex.StackTrace}");
+
+
         }
         return Cvte.Mcu.McuHunter.FindMcu();
     }
 
     public static List<UsbId> FindAll()
     {
-        Console.WriteLine("[调试] FindAll() 开始");
+
         List<UsbId> devices = Cvte.Mcu.McuHunter.FindAll();
-        Console.WriteLine($"[调试] FindAll() 完成，找到 {devices.Count} 个 MCU 设备");
+
         return devices;
     }
 

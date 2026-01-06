@@ -48,28 +48,27 @@ public class McuController
         {
             if (!McuHunter.Write(cmd))
             {
-                Console.WriteLine("[调试] TrySendAndRead: Write 失败");
+
                 return false;
             }
                 
-            Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
+
                         
             if (McuHunter.ReadWithShortTimeout(DATA_LENGTH, out byte[] readData))
             {
                 data = readData;
-                Console.WriteLine($"[调试] Read: received {data.Length} bytes: {BitConverter.ToString(data)}");
-                Console.WriteLine("[调试] TrySendAndRead: 读取成功");
+
                 return true;
             }
             else
             {
-                Console.WriteLine("[调试] TrySendAndRead: 读取失败");
+
                 return false;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] TrySendAndRead 异常: {ex.Message}");
+
             return false;
         }
     }
@@ -82,22 +81,24 @@ public class McuController
     {
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在查找并连接MCU设备...");
             // 如果指定了设备路径，优先使用指定的设备路径
             if (!string.IsNullOrEmpty(_devicePath) && _devicePath != "auto")
             {
-                Console.WriteLine($"正在连接指定设备路径: {_devicePath}");
+
                 var usbId = new UsbId(_devicePath, 0); // 使用默认版本号
                 bool connected = FindAndConnect(usbId);
                     
                 if (!connected)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"错误: 无法连接到指定的设备路径: {_devicePath}");
+
                     Console.ResetColor();
                     return false;
                 }
                     
-                Console.WriteLine($"[调试] McuController 连接结果: {McuHunter.Usb.IsConnected}");
+
                 return McuHunter.Usb.IsConnected;
             }
                 
@@ -106,7 +107,7 @@ public class McuController
                 
             if (allDevices.Count == 0)
             {
-                Console.WriteLine("[调试] 未找到任何MCU设备");
+
                 return false;
             }
                 
@@ -130,15 +131,15 @@ public class McuController
                     bool connected = FindAndConnect(selectedDevice);
                     if (connected)
                     {
-                        Console.WriteLine($"[调试] 已连接到选择的设备: {selectedDevice.DeviceName}");
-                        Console.WriteLine($"[调试] McuController 连接结果: {McuHunter.Usb.IsConnected}");
+                        
+        
                         return McuHunter.Usb.IsConnected;
                     }
                 }
                 else
                 {
                     // 用户按回车或输入无效，使用第一个设备
-                    Console.WriteLine("使用第一个设备...");
+                    
                 }
             }
                 
@@ -146,16 +147,16 @@ public class McuController
             bool result = McuHunter.FindAndConnection();
             if (result)
             {
-                Console.WriteLine($"[调试] McuController 连接结果: {McuHunter.Usb.IsConnected}");
+
                 return McuHunter.Usb.IsConnected;
             }
     
-            Console.WriteLine("[调试] McuHunter.FindAndConnection() 返回 false");
+
             return false;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] 连接异常: {ex.Message}");
+            
             return false;
         }
     }
@@ -169,18 +170,19 @@ public class McuController
     {
         try
         {
-            Console.WriteLine($"[调试] 尝试连接指定设备: {usbId.DeviceName}");
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在连接到指定的MCU设备...");
             bool connected = McuHunter.Usb.Connect(usbId.DeviceName);
-            Console.WriteLine($"[调试] 连接结果: {connected}");
+            
             if (connected)
             {
                 McuHunter.DetectedMcu = usbId;
             }
             return connected;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] 连接异常: {ex.Message}");
+            
             return false;
         }
     }
@@ -190,7 +192,9 @@ public class McuController
     /// </summary>
     public void Disconnect()
     {
-        Cvte.Mcu.Mcu.CloseConnection();
+        // 添加用户操作提示
+        Cvte.Mcu.Mcu.Log("Info", "正在断开MCU设备连接...");
+        Cvte.Mcu.McuHunter.CloseDeviceConnection();
     }
     #endregion
         
@@ -205,12 +209,13 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在获取主板名称...");
             return Cvte.Mcu.Mcu.GetBoardName();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] ExceptionError: {ex.Message}");
-            Console.WriteLine(ex);
+            
         }
     
         return string.Empty;
@@ -226,11 +231,13 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在获取设备IP地址...");
             return Cvte.Mcu.Mcu.GetIP();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine(ex);
+            
         }
     
         return string.Empty;
@@ -246,11 +253,13 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在获取设备UID...");
             return Cvte.Mcu.Mcu.GetUid();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] GetUID 异常: {ex.Message}");
+            
         }
     
         return string.Empty;
@@ -266,14 +275,14 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在获取CV触摸屏尺寸...");
             return Cvte.Mcu.Mcu.GetCVTouchSize();
         }
         catch (Exception)
         {
             return -1;
         }
-    
-        return -1;
     }
     
     /// <summary>
@@ -286,16 +295,18 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在获取MCU版本信息...");
             // 由于 Mcu 类中没有直接的 GetMcuVersion 方法，
             // 我们使用 TrySendAndRead 方法发送 GetMcuVersionCommand
             var cmd = SeewoMCUController.Mcu.McuCommand.GetMcuVersionCommand;
             if (!TrySendAndRead(cmd, out byte[] data, 100))
             {
-                Console.WriteLine("[调试] GetMcuVersion Write/Read 失败");
+                
                 return string.Empty;
             }
     
-            Console.WriteLine($"[调试] 读取到MCU版本响应数据: {BitConverter.ToString(data, 0, Math.Min(10, data.Length))}...");
+            
             // MCU版本信息通常在响应的特定位置
             if (data[6] == 0xC6) // 198
             {
@@ -313,16 +324,15 @@ public class McuController
                     }
                 }
                 string result = sb.ToString();
-                Console.WriteLine($"[调试] 成功获取MCU版本: {result}");
+                
                 return result;
             }
                 
-            Console.WriteLine("[调试] GetMcuVersion 读取到的数据错误");
+            
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] ExceptionError: {ex.Message}");
-            Console.WriteLine(ex);
+            
         }
     
         return string.Empty;
@@ -340,11 +350,13 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在增加音量...");
             return Cvte.Mcu.Mcu.AddVolume();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] AddVolume 异常: {ex.Message}");
+            
             return false;
         }
     }
@@ -359,11 +371,13 @@ public class McuController
     
         try
         {
+            // 添加用户操作提示
+            Cvte.Mcu.Mcu.Log("Info", "正在降低音量...");
             return Cvte.Mcu.Mcu.DecreaseVolume();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] DecreaseVolume 异常: {ex.Message}");
+            
             return false;
         }
     }
@@ -479,9 +493,9 @@ public class McuController
             var allDevices = McuHunter.FindAll();
             return allDevices;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[调试] 枚举设备时发生异常: {ex.Message}");
+            
             return new List<UsbId>();
         }
     }

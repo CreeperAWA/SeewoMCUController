@@ -201,7 +201,7 @@ namespace Cvte.Mcu
             catch (Exception ex)
             {
                 OnLog("ExceptionError", ex.Message);
-                Console.WriteLine(ex);
+
                 text = string.Empty;
             }
             return text;
@@ -248,7 +248,7 @@ namespace Cvte.Mcu
             catch (Exception ex)
             {
                 OnLog("ExceptionError", ex.Message);
-                Console.WriteLine(ex);
+
                 text = string.Empty;
             }
             return text;
@@ -287,9 +287,9 @@ namespace Cvte.Mcu
                     text = string.Empty;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine(ex);
+
                 text = string.Empty;
             }
             return text;
@@ -330,9 +330,9 @@ namespace Cvte.Mcu
                     text = string.Empty;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine(ex);
+
                 text = string.Empty;
             }
             return text;
@@ -417,8 +417,10 @@ namespace Cvte.Mcu
         /// <returns>操作是否成功</returns>
         public static bool AddVolume()
         {
+            // 添加用户操作提示
+            OnLog("Info", "正在增加音量...");
+            
             var cmd = McuCommand.AddVolumeCommand;
-            Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
             if (!McuHunter.Write(cmd))
             {
                 OnLog("WriteError", "AddVolume WriteError");
@@ -438,6 +440,9 @@ namespace Cvte.Mcu
         /// <returns>操作是否成功</returns>
         public static async Task<bool> AddVolumeAsync()
         {
+            // 添加用户操作提示
+            OnLog("Info", "正在增加音量...");
+            
             if (!McuHunter.Write(McuCommand.AddVolumeCommand))
             {
                 OnLog("WriteError", "AddVolume WriteError");
@@ -457,8 +462,10 @@ namespace Cvte.Mcu
         /// <returns>操作是否成功</returns>
         public static bool DecreaseVolume()
         {
+            // 添加用户操作提示
+            OnLog("Info", "正在降低音量...");
+            
             var cmd = McuCommand.DecreaseVolume;
-            Console.WriteLine($"[调试] Write: sent {cmd.Length} bytes: {BitConverter.ToString(cmd)}");
             if (!McuHunter.Write(cmd))
             {
                 OnLog("WriteError", "DecreaseVolume WriteError");
@@ -478,6 +485,9 @@ namespace Cvte.Mcu
         /// <returns>操作是否成功</returns>
         public static async Task<bool> DecreaseVolumeAsync()
         {
+            // 添加用户操作提示
+            OnLog("Info", "正在降低音量...");
+            
             if (!McuHunter.Write(McuCommand.DecreaseVolume))
             {
                 OnLog("WriteError", "DecreaseVolume WriteError");
@@ -515,12 +525,12 @@ namespace Cvte.Mcu
         }
 
         /// <summary>
-        /// 异步读取数据（已过时，建议使用McuHunter.TryReadAsync）
+        /// 异步读取数据（已过时，建议使用McuHunter.TryReadFromDeviceAsync）
         /// </summary>
         /// <param name="dataLength">数据长度</param>
         /// <param name="methodName">方法名称</param>
         /// <returns>包含操作结果和数据的元组</returns>
-        [Obsolete("请使用 McuHunter.TryReadAsync")]
+        [Obsolete("请使用 McuHunter.TryReadFromDeviceAsync")]
         public static async Task<ValueTuple<bool, byte[]>> ReadAsync(int dataLength = -1, string methodName = "")
         {
             if (dataLength < 0)
