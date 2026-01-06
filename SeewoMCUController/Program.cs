@@ -173,23 +173,23 @@ class Program
 
         try
         {
-            Console.WriteLine(" 开始获取设备信息...");
+            Console.WriteLine("开始获取设备信息...");
             
             // 首先获取所有信息
             string boardName = _mcuController.GetBoardName();
-            Console.WriteLine($" 获取主板名称: {boardName}");
+            Console.WriteLine($"获取主板名称: {boardName}");
             
             string ip = _mcuController.GetIP();
-            Console.WriteLine($" 获取IP: {ip}");
+            Console.WriteLine($"获取IP: {ip}");
             
             string uid = _mcuController.GetUid();
-            Console.WriteLine($" 获取UID: {uid}");
+            Console.WriteLine($"获取UID: {uid}");
             
             int touchSize = _mcuController.GetCVTouchSize();
-            Console.WriteLine($" 获取触摸屏尺寸: {touchSize}");
+            Console.WriteLine($"获取触摸屏尺寸: {touchSize}");
             
             string mcuVersion = _mcuController.GetMcuVersion();
-            Console.WriteLine($" 获取MCU版本: {mcuVersion}");
+            Console.WriteLine($"获取MCU版本: {mcuVersion}");
             
              // 获取设备连接信息
              string devicePath = "未知";
@@ -200,10 +200,10 @@ class Program
                  devicePath = _mcuController.GetDevicePath();
                  vid = $"0x{_mcuController.GetDeviceVid():X4}";
                  pid = $"0x{_mcuController.GetDevicePid():X4}";
-                 Console.WriteLine($" 获取设备连接信息: VID={vid}, PID={pid}, Path={devicePath}");
+                 Console.WriteLine($"获取设备连接信息: VID={vid}, PID={pid}, Path={devicePath}");
              }
 
-            Console.WriteLine(" 开始打印设备信息...");
+            Console.WriteLine("开始打印设备信息...");
             
             // 然后统一打印所有信息
             Console.WriteLine($"主板名称: {(string.IsNullOrEmpty(boardName) ? "未知" : boardName)}");
@@ -218,8 +218,8 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($" 获取设备信息时发生异常: {ex.Message}");
-            Console.WriteLine($" 异常堆栈: {ex.StackTrace}");
+            Console.WriteLine($"获取设备信息时发生异常: {ex.Message}");
+            Console.WriteLine($"异常堆栈: {ex.StackTrace}");
             
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"获取设备信息时出错: {ex.Message}");
