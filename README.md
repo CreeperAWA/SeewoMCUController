@@ -82,7 +82,7 @@ SeewoMCUController.exe -d "\\?\hid#vid_1ff7&pid_0f21&mi_00&col02#8&362c00b8&0&00
 - `pen on` - 启用触控笔
 - `pen off` - 禁用触控笔
 - `info` - 重新显示设备信息
-- `list` - 列出所有检测到的MCU设备
+- `list` - 列出所有检测到的 MCU 设备
 - `help / ?` - 显示帮助信息
 - `exit / quit` - 退出程序
 
