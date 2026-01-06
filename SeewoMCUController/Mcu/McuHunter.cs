@@ -197,17 +197,37 @@ namespace Cvte.Mcu
         {
             try
             {
-                foreach (UsbId usbId in FindAll())
+                var devices = FindAll();
+                
+                foreach (UsbId usbId in devices)
                 {
-                    if (Usb.Connect(usbId) && CanWrite())
+                    // 尝试连接当前设备
+                    if (Usb.Connect(usbId))
                     {
-                        DetectedMcu = usbId;
-                        return true;
+                        // 执行测试命令验证设备是否有效
+                        if (CanWrite())
+                        {
+                            // 测试成功，确认该设备为有效连接设备
+                            DetectedMcu = usbId;
+                            return true;
+                        }
+                        else
+                        {
+                            // 测试失败，断开当前连接，继续尝试下一个设备
+                            Usb.Disconnect();
+                        }
                     }
                 }
+                
+                // 遍历完所有检测到的设备后都没有成功执行测试命令
+                if (devices.Count > 0)
+                {
+                    Console.WriteLine("警告: 所有检测到的设备都无法建立有效连接");
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine($"设备连接过程中发生异常: {ex.Message}");
             }
             return false;
         }

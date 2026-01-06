@@ -121,7 +121,7 @@ public class McuController
                     Console.WriteLine($"  [{i + 1}] VID:0x{device.Vid:X4}, PID:0x{device.Pid:X4}, 路径: {device.DeviceName}");
                 }
                     
-                Console.Write($"请选择设备 (1-{allDevices.Count}) 或按回车自动选择第一个: ");
+                Console.Write($"请选择设备 (1-{allDevices.Count}) 或按回车由程序自动选择: ");
                 string? input = Console.ReadLine();
                     
                 if (int.TryParse(input, out int selection) && selection >= 1 && selection <= allDevices.Count)
