@@ -11,8 +11,6 @@ namespace SeewoMCUController.Mcu
         private const byte HEADER_4 = 0;
         private static readonly byte DEVICE_ID_5 = 251;
         private const int DATA_LENGTH = 64;
-
-        // 从Example-McuCommand.cs添加的内部常量
         private const byte COMMAND_MAIN_ANDROID_6 = 51;
         private const byte COMMAND_SUB_SEND_TOOLBAR_7 = 6;
         private const byte COMMAND_SUB_SEND_HOME_7 = 8;
