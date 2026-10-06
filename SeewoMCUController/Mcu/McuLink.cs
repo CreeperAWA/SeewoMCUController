@@ -270,7 +270,10 @@ public sealed class McuLink : IDisposable
     {
         lock (_pendingGate)
         {
-            foreach (var request in _pending) request.TryComplete(null);
+            foreach (var request in _pending)
+            {
+                request.TryComplete(null);
+            }
             _pending.Clear();
         }
     }

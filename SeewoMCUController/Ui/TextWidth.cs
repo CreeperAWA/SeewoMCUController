@@ -11,7 +11,10 @@ public static class TextWidth
     {
         if (string.IsNullOrEmpty(text)) return 0;
         int width = 0;
-        foreach (char c in text) width += IsWide(c) ? 2 : 1;
+        foreach (char c in text)
+        {
+            width += IsWide(c) ? 2 : 1;
+        }
         return width;
     }
 

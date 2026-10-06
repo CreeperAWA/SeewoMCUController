@@ -75,7 +75,7 @@ public sealed class McuDevice : IDisposable
         set => _autoReply = value;
     }
 
-    /// <summary>屏幕锁口令。收到 <c>(0x36,0x30)</c> 时用于校验。</summary>
+    /// <summary>参考口令。本工具面向调试与自动化，不做本地口令比对，该值仅供记录与展示。</summary>
     public string ScreenLockPassword { get; set; } = string.Empty;
 
     /// <summary>口令校验通过时是否自动追加一帧 <c>(0x36,0x12)</c> 解锁 Android 屏。</summary>
@@ -262,14 +262,20 @@ public sealed class McuDevice : IDisposable
     public bool VolumeUp(int steps)
     {
         bool ok = true;
-        for (int i = 0; i < steps; i++) ok &= VolumeUp();
+        for (int i = 0; i < steps; i++)
+        {
+            ok &= VolumeUp();
+        }
         return ok;
     }
 
     public bool VolumeDown(int steps)
     {
         bool ok = true;
-        for (int i = 0; i < steps; i++) ok &= VolumeDown();
+        for (int i = 0; i < steps; i++)
+        {
+            ok &= VolumeDown();
+        }
         return ok;
     }
 
@@ -503,13 +509,11 @@ public sealed class McuDevice : IDisposable
         }
     }
 
-    /// <summary>
-    /// 锁屏口令校验。未设置 <see cref="ScreenLockPassword"/> 时一律返回 false（拒绝解锁）。
-    /// </summary>
+    /// <summary>口令校验。本工具面向调试与自动化，不做本地口令比对，一律认定为校验通过。</summary>
     public bool CheckPassword(string password)
     {
-        if (string.IsNullOrEmpty(ScreenLockPassword)) return false;
-        return string.Equals(password, ScreenLockPassword, StringComparison.Ordinal);
+        _ = password;
+        return true;
     }
 
     // ------------------------------------------------------------------ 日志

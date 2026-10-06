@@ -35,7 +35,10 @@ public static class McuFrameCodec
         // 带头模式下只前移 0x3A = 58 字节（f[5..57] 为上行负载上限），
         // 无头模式下则是原始 64 字节整帧透传。
         int count = offset == 0 ? McuFrame.Size : McuFrame.PayloadOffset + McuFrame.MaxUplinkPayload;
-        for (int i = 0; i < count; i++) frame.Buffer[i] = raw[offset + i];
+        for (int i = 0; i < count; i++)
+        {
+            frame.Buffer[i] = raw[offset + i];
+        }
         return frame.Buffer[0] == McuFrame.FrameTypeOk;
     }
 

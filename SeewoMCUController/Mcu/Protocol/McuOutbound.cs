@@ -3,7 +3,6 @@ using System.Text;
 namespace SeewoMCUController.Mcu.Protocol;
 
 /// <summary>
-/// <summary>
 /// 全部 PC → MCU 组包器。各方法的注释直接给出该命令的字节布局与各字段含义。
 /// </summary>
 public static class McuOutbound
@@ -25,10 +24,9 @@ public static class McuOutbound
     public static McuFrame BaseInfo() => new(0x01, 0x00);
 
     /// <summary>
-/// <summary>
-/// <c>(0x01,0x01)</c> 通知安卓板关机。仅在 PC 侧执行关机流程且 MCU 通道
-/// 可用时发送，握手序列中不包含它。
-/// </summary>
+    /// <c>(0x01,0x01)</c> 通知安卓板关机。仅在 PC 侧执行关机流程且 MCU 通道
+    /// 可用时发送，握手序列中不包含它。
+    /// </summary>
     public static McuFrame PowerOffRequest() => new(0x01, 0x01);
 
     /// <summary><c>(0x16,0x00/0x01/0x02)</c> 音视频模式声明 A/B/C。</summary>
@@ -38,14 +36,12 @@ public static class McuOutbound
     public static McuFrame RequestAndroidInfo() => new((byte)MainOut.AndroidInfo, (byte)Main2B.RequestInfo);
 
     /// <summary>
-/// <summary>
-/// <c>(0x2B,0x23)</c> 注册 WOL 服务器名，负载为 <b>25 个字符</b>。
-/// <para>
-/// 默认名称 <c>persisit.remote.pc.wakeup</c> 本身恰好 25 个字符，因此 <c>f[3] = 25</c>，负载为这 25 个
-/// 字符、不包含尾部 <c>\0</c>；传入自定义名称时长度随之变化。
-/// </para>
-/// </summary>
-/// </summary>
+    /// <c>(0x2B,0x23)</c> 注册 WOL 服务器名，负载为 <b>25 个字符</b>。
+    /// <para>
+    /// 默认名称 <c>persisit.remote.pc.wakeup</c> 本身恰好 25 个字符，因此 <c>f[3] = 25</c>，负载为这 25 个
+    /// 字符、不包含尾部 <c>\0</c>；传入自定义名称时长度随之变化。
+    /// </para>
+    /// </summary>
     public static McuFrame RegisterWolServerName(string name = WolServerName)
     {
         var bytes = Encoding.ASCII.GetBytes(name);
@@ -62,13 +58,10 @@ public static class McuOutbound
     // ---------------------------------------------------------------- 时间同步
 
     /// <summary>
-/// <summary>
-/// <c>(0x15,0x00)</c>，<code>f[3]=7</c>，其后为 7 字节时间负载：<code>f[5]</code> 年高、<code>f[6]</code> 年低、
-/// <code>f[7]</code> 月、<code>f[8]</code> 日、<code>f[9]</code> 时、<code>f[10]</code> 分、<code>f[11]</code> 秒。
-/// <para>年份为 16 位大端；协议不携带时区，接收方按同一时区解释。</para>
-/// </summary>
-/// <para>年份为 16 位大端；月 = <c>tm_mon + 1</c>；协议不含时区。</para>
-/// </summary>
+    /// <c>(0x15,0x00)</c>，<code>f[3]=7</code>，其后为 7 字节时间负载：<code>f[5]</code> 年高、<code>f[6]</code> 年低、
+    /// <code>f[7]</code> 月、<code>f[8]</code> 日、<code>f[9]</code> 时、<code>f[10]</code> 分、<code>f[11]</code> 秒。
+    /// <para>年份为 16 位大端；协议不携带时区，接收方按同一时区解释。</para>
+    /// </summary>
     public static McuFrame SyncTime(DateTime localTime)
     {
         var frame = new McuFrame((byte)MainOut.SetTime, 0x00);
@@ -89,22 +82,20 @@ public static class McuOutbound
     // ---------------------------------------------------------------- 通道
 
     /// <summary>
-    /// <summary>
-/// <c>(0x07,ch)</c> 切换通道。
-/// <list type="bullet">
-/// <item><c>ch==1</c>（TV）：<code>f[3]=2, f[5]=param&gt;&gt;8, f[6]=param&amp;0xFF</code></item>
-/// <item><c>ch in {9,10}</c>（HDMI/VGA）：<code>f[3]=1, f[5]=(byte)param-1</code>，即 param 为 1 基序号</item>
-/// <item>其他：<code>f[3]=0</code></item>
-/// </list>
-/// </summary>
+    /// <c>(0x07,ch)</c> 切换通道。
+    /// <list type="bullet">
+    /// <item><c>ch==1</c>（TV）：<code>f[3]=2, f[5]=param&gt;&gt;8, f[6]=param&amp;0xFF</code></item>
+    /// <item><c>ch in {9,10}</c>（HDMI/VGA）：<code>f[3]=1, f[5]=(byte)param-1</code>，即 param 为 1 基序号</item>
+    /// <item>其他：<code>f[3]=0</code></item>
+    /// </list>
+    /// </summary>
     public static McuFrame SwitchChannel(McuChannel channel, ushort param = 0)
         => BuildChannelFrame((byte)MainOut.SwitchChannel, channel, param, decrementParam: true);
 
     /// <summary>
-    /// <summary>
-/// <c>(0x13,ch)</c> 设置默认通道模式。字段布局与 <see cref="SwitchChannel"/> 一致，
-/// 区别在于 <c>ch in {9,10}</c> 时 <c>f[5]=(byte)param</c>（不做减一）。
-/// </summary>
+    /// <c>(0x13,ch)</c> 设置默认通道模式。字段布局与 <see cref="SwitchChannel"/> 一致，
+    /// 区别在于 <c>ch in {9,10}</c> 时 <c>f[5]=(byte)param</c>（不做减一）。
+    /// </summary>
     public static McuFrame SetDefaultChannelMode(McuChannel channel, ushort param = 0)
         => BuildChannelFrame((byte)MainOut.DefaultChannelMode, channel, param, decrementParam: false);
 
@@ -191,10 +182,9 @@ public static class McuOutbound
     public static McuFrame NotifyCableScreenPlugIn() => new((byte)MainOut.CableScreenPlugIn, 0x00);
 
     /// <summary>
-    /// <summary>
-/// <c>(0x34,0x0A)</c> 让安卓板打开网络设置菜单：<code>f[3]=0x01, f[5]=0x01</code>，
-/// 即帧头 4 字节为 <c>34 0A 01 00</c>。
-/// </summary>
+    /// <c>(0x34,0x0A)</c> 让安卓板打开网络设置菜单：<code>f[3]=0x01, f[5]=0x01</code>，
+    /// 即帧头 4 字节为 <c>34 0A 01 00</c>。
+    /// </summary>
     public static McuFrame OpenNetworkMenu()
     {
         var frame = new McuFrame((byte)MainOut.AndroidGlobal, (byte)Main34.NetworkMenu);
@@ -210,11 +200,10 @@ public static class McuOutbound
     public static McuFrame WolBroadcast() => new((byte)MainOut.AndroidGlobal, (byte)Main34.WolBroadcast);
 
     /// <summary>
-/// <summary>
-/// <c>(0x31,0x00)</c> 通知安卓板「设备已被 U 盘解锁」。
-/// 协议中与 U 盘相关的命令只有这一条，作用是告知解锁结果，
-/// 不涉及对 U 盘本身写保护或只读状态的任何操作。
-/// </summary>
+    /// <c>(0x31,0x00)</c> 通知安卓板「设备已被 U 盘解锁」。
+    /// 协议中与 U 盘相关的命令只有这一条，作用是告知解锁结果，
+    /// 不涉及对 U 盘本身写保护或只读状态的任何操作。
+    /// </summary>
     public static McuFrame NotifyUnlockedByUsbKey() => new((byte)MainOut.UsbDiskUnlock, 0x00);
 
     /// <summary><c>(0x40,0x00)</c> 读取设备 UID（本项目历史实现）。</summary>
@@ -274,9 +263,8 @@ public static class McuOutbound
     }
 
     /// <summary>
-    /// <summary>
-/// 通用 <c>0x36</c> 带负载组包：<code>f[3]</code> 自动取负载长度，负载写入 <c>f[5]</c> 起的连续字节。
-/// </summary>
+    /// 通用 <c>0x36</c> 带负载组包：<code>f[3]</code> 自动取负载长度，负载写入 <c>f[5]</c> 起的连续字节。
+    /// </summary>
     public static McuFrame Build36(byte sub, ReadOnlySpan<byte> payload = default)
     {
         var frame = new McuFrame((byte)MainOut.ScreenLockGroup, sub);

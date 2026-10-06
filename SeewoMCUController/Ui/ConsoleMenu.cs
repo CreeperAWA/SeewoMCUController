@@ -213,7 +213,10 @@ public sealed class ConsoleMenu
         lock (_noticeGate) lines = _notices.ToArray();
         if (lines.Length == 0) return;
         Console.WriteLine("---- 最近事件 ----");
-        foreach (var line in lines) Console.WriteLine("  " + line);
+        foreach (var line in lines)
+        {
+            Console.WriteLine("  " + line);
+        }
         Console.WriteLine("------------------");
         _notices.Clear();
     }

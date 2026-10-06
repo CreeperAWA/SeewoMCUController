@@ -298,7 +298,7 @@ public static class McuActionRegistry
             (d, _, _) => Send(d, () => McuOutbound.LockScreen()), "", new[] { "lockscreen" }));
         lockMenu.Actions.Add(Act("lock", "unlock", "解锁 Android 屏", "(0x36,0x12)",
             (d, _, _) => Send(d, () => McuOutbound.UnlockScreen()), "", new[] { "unlockscreen" }));
-        lockMenu.Actions.Add(Act("lock", "pwd", "用本地口令校验并回 (0x36,0x31)", "(0x36,0x31)",
+        lockMenu.Actions.Add(Act("lock", "pwd", "回 (0x36,0x31)=校验通过并自动解锁", "(0x36,0x31)",
             (d, a, _) =>
             {
                 if (!d.IsConnected) return Task.FromResult(NotConnected);
@@ -309,13 +309,13 @@ public static class McuActionRegistry
                     extra = "，并已发送 (0x36,0x12) 解锁";
                 return Task.FromResult($"{(sent ? "[OK]" : "[ERR]")} 口令{(ok ? "正确" : "错误")}，已回 (0x36,0x31)={(ok ? "0x01" : "0x00")}{extra}");
             }, "<口令>", new[] { "password" }));
-        lockMenu.Actions.Add(Act("lock", "set-password", "设置本地锁屏口令（仅本机，不发 MCU 命令）", "",
+        lockMenu.Actions.Add(Act("lock", "set-password", "记录参考口令（仅本机，不发 MCU 命令；校验一律通过）", "",
             (d, a, _) =>
             {
                 d.ScreenLockPassword = TextArg(a, 0, string.Empty);
                 return Task.FromResult(string.IsNullOrEmpty(d.ScreenLockPassword)
-                    ? "已清空本地口令（此后口令校验一律失败）"
-                    : $"本地口令已设置（{d.ScreenLockPassword.Length} 位）");
+                    ? "参考口令已清空（口令校验仍一律通过）"
+                    : $"参考口令已记录（{d.ScreenLockPassword.Length} 位，口令校验仍一律通过）");
             }, "<口令>", new[] { "setpwd" }, true));
         lockMenu.Actions.Add(Act("lock", "file-back", "请求安卓板回传文件数据", "(0x36,0x33)",
             (d, _, _) => Send(d, () => McuOutbound.RequestFileBack())));

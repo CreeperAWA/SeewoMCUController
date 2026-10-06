@@ -139,7 +139,10 @@ public sealed class McuFrame
     {
         Buffer[0] = FrameTypeOk;
         uint sum = 0;
-        for (int i = 0; i < Size - 1; i++) sum += Buffer[i];
+        for (int i = 0; i < Size - 1; i++)
+        {
+            sum += Buffer[i];
+        }
         Buffer[Size - 1] = (byte)(sum & 0xFF);
         return this;
     }
@@ -156,7 +159,10 @@ public sealed class McuFrame
 
         var wire = new byte[Size];
         // 右移 5 字节：for (i = 0x3F; i >= 5; i--) f[i] = f[i-5];
-        for (int i = Size - 1; i >= TransportHeaderSize; i--) wire[i] = Buffer[i - TransportHeaderSize];
+        for (int i = Size - 1; i >= TransportHeaderSize; i--)
+        {
+            wire[i] = Buffer[i - TransportHeaderSize];
+        }
         wire[0] = 0xFC;
         wire[1] = 0xA5;
         wire[2] = 0x05;

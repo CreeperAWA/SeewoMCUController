@@ -10,7 +10,10 @@ namespace SeewoMCUController.Mcu
         {
             var list = new List<UsbIdIndex>();
             int i = 0;
-            foreach (var temp in usbIdSortList) list.Add(new UsbIdIndex(temp, i++));
+            foreach (var temp in usbIdSortList)
+            {
+                list.Add(new UsbIdIndex(temp, i++));
+            }
             this.UsbIdSortList = list;
         }
 
