@@ -1,19 +1,12 @@
-using System.Text;
-
 namespace SeewoMCUController.Ui;
 
 /// <summary>控制台显示主题。设置 <c>NO_COLOR</c> 或重定向输出时自动关闭颜色。</summary>
 public static class ConsoleTheme
 {
-    private static readonly object Gate = new();
-
     public static bool Enabled { get; private set; } = !Console.IsOutputRedirected
         && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
 
-    public static void ToggleColors()
-    {
-        lock (Gate) Enabled = !Enabled;
-    }
+    public static void ToggleColors() => Enabled = !Enabled;
 
     public static void Write(string text, ConsoleColor color, bool bold = false)
     {
