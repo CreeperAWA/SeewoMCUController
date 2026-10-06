@@ -478,7 +478,7 @@ public sealed class McuDevice : IDisposable
                 case (byte)MainIn.RequestPcTime:
                     Send(McuOutbound.SyncTimeNow());
                     break;
-                case (byte)MainIn.ScreenLockGroup:
+                case (byte)MainIn.Group36:
                     switch ((Main36)f.Sub)
                     {
                         case Main36.ScreenPassword:

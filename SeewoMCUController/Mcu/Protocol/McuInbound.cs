@@ -45,7 +45,7 @@ public static class McuInbound
         {
             (byte)MainIn.AndroidInfo => Decode2B(frame),
             (byte)MainIn.AndroidGlobal => Decode34(frame),
-            (byte)MainIn.ScreenLockGroup => Decode36(frame),
+            (byte)MainIn.Group36 => Decode36(frame),
             (byte)MainIn.AndroidMacReply => new McuInboundEvent
             {
                 Frame = frame,
@@ -287,7 +287,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = action switch { 0 => "U 盘拔出", 1 => "U 盘插入", _ => "U 盘动作" },
                     Detail = string.IsNullOrEmpty(drive) ? $"action={action}" : drive,
                     Kind = action == 1 ? InboundKind.Request : InboundKind.State,
@@ -298,7 +298,7 @@ public static class McuInbound
                 return new McuInboundEvent
             {
                 Frame = frame,
-                Main = MainIn.ScreenLockGroup,
+                Main = MainIn.Group36,
                 Name = "远程协助锁屏口令",
                 Detail = frame.PayloadString(),
                 Kind = InboundKind.Request,
@@ -310,7 +310,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = type switch { 0 => "文件数据-重置缓存", 0xFF => "文件数据-请求回传", _ => "文件数据" },
                     Detail = type == 0xFF ? string.Empty : frame.ToHex(McuFrame.PayloadOffset + Math.Min(frame.PayloadLength, McuFrame.Size)),
                     Kind = type == 0xFF ? InboundKind.Request : InboundKind.State,
@@ -321,7 +321,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = "希沃账号／口令",
                     Detail = frame.PayloadString(),
                     Kind = InboundKind.Request,
@@ -331,7 +331,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = "请求二维码信息",
                     Detail = string.Empty,
                     Kind = InboundKind.Request,
@@ -340,7 +340,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = "安卓板上报 SN",
                     Detail = frame.PayloadString(),
                     Kind = InboundKind.Request,
@@ -350,7 +350,7 @@ public static class McuInbound
                 return new McuInboundEvent
                 {
                     Frame = frame,
-                    Main = MainIn.ScreenLockGroup,
+                    Main = MainIn.Group36,
                     Name = "0x36 组通知",
                     Detail = $"sub=0x{frame.Sub:X2} {frame.PayloadString()}",
                     Kind = InboundKind.Notice,

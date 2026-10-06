@@ -234,10 +234,10 @@ public static class McuOutbound
     public static McuFrame PasswordResult(bool accepted)
         => Build36((byte)Main36.PasswordResult, new[] { (byte)(accepted ? 0x01 : 0x00) });
 
-    /// <summary><c>(0x36,0x33)</c> 请求安卓板回传文件数据（空负载）。</summary>
+    /// <summary><c>(0x36,0x33)</c> 请求安卓板回传文件数据（空负载），U 盘镜像通道的回程帧。</summary>
     public static McuFrame RequestFileBack() => Build36((byte)Main36.RequestFileBack);
 
-    /// <summary><c>(0x36,0x39)</c> SN 接收确认（空负载）。</summary>
+    /// <summary><c>(0x36,0x39)</c> SN 接收确认（空负载），U 盘镜像通道的回程帧。</summary>
     public static McuFrame AckSerialNumber() => Build36((byte)Main36.SnAck);
 
     /// <summary><c>(0x36,0x37)</c> 无负载通知。</summary>
@@ -264,10 +264,11 @@ public static class McuOutbound
 
     /// <summary>
     /// 通用 <c>0x36</c> 带负载组包：<code>f[3]</code> 自动取负载长度，负载写入 <c>f[5]</c> 起的连续字节。
+    /// 该组同时承载屏幕锁、远程协助与 U 盘动作三类子命令。
     /// </summary>
     public static McuFrame Build36(byte sub, ReadOnlySpan<byte> payload = default)
     {
-        var frame = new McuFrame((byte)MainOut.ScreenLockGroup, sub);
+        var frame = new McuFrame((byte)MainOut.Group36, sub);
         return frame.SetPayload(payload);
     }
 

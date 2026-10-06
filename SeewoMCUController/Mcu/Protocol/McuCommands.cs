@@ -54,8 +54,9 @@ public enum MainOut : byte
     /// <summary><c>(0x34,sub)</c> 安卓/全局子命令组。</summary>
     AndroidGlobal = 0x34,
 
-    /// <summary><c>(0x36,sub)</c> 屏幕锁 / 远程协助 / U 盘动作子命令组。</summary>
-    ScreenLockGroup = 0x36,
+    /// <summary><c>(0x36,sub)</c> 子命令组，子命令分三类：屏幕锁 <c>0x10/0x12</c>、远程协助 <c>0x14/0x16/0x18/0x30/0x34/0x35/0x36/0x37</c>、
+    /// U 盘动作 <c>0x19/0x32/0x33/0x38/0x39/0x40</c>。U 盘动作与屏幕锁是两条不同的业务，不要混为一谈。</summary>
+    Group36 = 0x36,
 
     /// <summary><c>(0x40,0x00)</c> 读取设备 UID（本项目历史实现）。</summary>
     Uid = 0x40,
@@ -104,13 +105,14 @@ public enum Main36 : byte
     /// <summary>→MCU 状态／凭据应答 <c>[tag][数据…]</c>。</summary>
     StatusAck = 0x14,
 
-    /// <summary>→MCU 开关／弹窗状态应答 <c>[tag][数据…]</c>。</summary>
+    /// <summary>→MCU 开关／弹窗状态应答 <c>[tag][数据…]</c>。
+    /// <para>U 盘插入时也用本帧回程（<code>tag=0x02</code>），是该帧唯一一条被两条链路共用的回程帧。</para></summary>
     SwitchStateAck = 0x16,
 
     /// <summary>→MCU 二进制负载应答 <c>[tag][二进制…]</c>。</summary>
     BinaryAck = 0x18,
 
-    /// <summary>←PC U 盘动作通知（<c>f[5]</c>=action，<c>f[6..]</c>=U 盘标识串）。</summary>
+    /// <summary>←PC U 盘插拔事件：<c>f[5]</c>=action（<c>0</c>=拔出 / <c>1</c>=插入），<c>f[6..]</c>=U 盘标识串。</summary>
     UsbActionNotify = 0x19,
 
     /// <summary>←PC 远程协助锁屏口令。</summary>
@@ -119,10 +121,11 @@ public enum Main36 : byte
     /// <summary>→MCU 口令校验结果（1 字节：0x01 正确 / 0x00 错误）。</summary>
     PasswordResult = 0x31,
 
-    /// <summary>←PC 安卓板下发文件数据。</summary>
+    /// <summary>←PC U 盘文件数据（<b>U 盘插在安卓板侧</b>时的文件下发）。
+    /// <para><c>f[5]</c> 为 type：<code>0xFF</code> = 请求回传（对应应答 <c>(0x36,0x33)</c>），<code>0</code> = 重置缓存，其余为数据。</para></summary>
     UsbLockFileToPc = 0x32,
 
-    /// <summary>→MCU 请求安卓板回传文件数据（空负载）。</summary>
+    /// <summary>→MCU 请求安卓板回传文件数据（空负载），U 盘镜像通道的回程帧。</summary>
     RequestFileBack = 0x33,
 
     /// <summary>←PC 希沃账号／口令。</summary>
@@ -137,13 +140,14 @@ public enum Main36 : byte
     /// <summary>→MCU 无负载通知。</summary>
     Notice = 0x37,
 
-    /// <summary>←PC 安卓板上报 SN。</summary>
+    /// <summary>←PC 安卓板上报 SN（U 盘镜像通道）。</summary>
     SerialNumber = 0x38,
 
-    /// <summary>→MCU SN 接收确认（空负载）。</summary>
+    /// <summary>→MCU SN 接收确认（空负载），U 盘镜像通道的回程帧。</summary>
     SnAck = 0x39,
 
-    /// <summary>←PC 安卓 U 盘插拔事件（同 <see cref="UsbActionNotify"/>）。</summary>
+    /// <summary>←PC U 盘插拔事件，与 <see cref="UsbActionNotify"/>（0x19）共用同一处理链与同一 payload 格式，
+    /// 两者是同一条 U 盘镜像通道上的两个 SUB 别名。</summary>
     UsbAction = 0x40,
 }
 
@@ -196,8 +200,8 @@ public enum MainIn : byte
     /// <summary>安卓／全局子命令组。</summary>
     AndroidGlobal = 0x34,
 
-    /// <summary>屏幕锁 / 远程协助 / U 盘动作子命令组。</summary>
-    ScreenLockGroup = 0x36,
+    /// <summary>子命令组：屏幕锁、远程协助与 U 盘动作三类（同 <c>0x36</c> 下的 <c>Main36</c> 枚举）。</summary>
+    Group36 = 0x36,
 
     /// <summary>机型信息。</summary>
     MachineType = 0x50,
@@ -387,7 +391,7 @@ public static class McuCommandNames
         if (frame.Main == (byte)MainOut.SwitchChannel || frame.Main == (byte)MainOut.DefaultChannelMode
             || frame.Main == (byte)MainOut.ReportChannel)
             return $"通道命令 ch={DescribeChannel(frame.Sub)}";
-        if (frame.Main == (byte)MainOut.Volume || frame.Main == (byte)MainOut.ScreenLockGroup
+        if (frame.Main == (byte)MainOut.Volume || frame.Main == (byte)MainOut.Group36
             || frame.Main == (byte)MainOut.AndroidGlobal || frame.Main == (byte)MainOut.AndroidInfo)
             return $"0x{frame.Main:X2}/0x{frame.Sub:X2}";
         return $"0x{frame.Main:X2}/0x{frame.Sub:X2}";
