@@ -66,6 +66,21 @@ namespace SeewoMCUController.Mcu
             return ok;
         }
 
+        /// <summary>
+        /// 阻塞式读取一份 HID 报告，并回报实际读到的字节数。
+        /// 供 <see cref="Mcu.McuLink"/> 的专属读线程使用：读取期间不与其它读者竞争句柄。
+        /// </summary>
+        public bool ReadReport(int length, out byte[] data, out int bytesRead)
+        {
+            data = new byte[length];
+            bytesRead = 0;
+            VerifyConnection();
+            uint read = 0;
+            bool ok = WindowsApi.ReadFile(_hReadFile!, data, (uint)length, ref read, IntPtr.Zero);
+            bytesRead = ok ? (int)read : 0;
+            return ok;
+        }
+
         public bool ReadWithTimeout(int length, out byte[] data, int timeoutMs = 5000)
         {
             data = new byte[length];
