@@ -96,7 +96,7 @@ public sealed class ConsoleMenu
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(c.Title, 14)}{c.Hint}");
             }
             Console.WriteLine("  [h] 帮助  [d] 握手  [p] 暂停面板  [c] 切换颜色  [q] 退出");
-            var input = await ReadLineRealtimeAsync("请选择> ", RenderMainMenu).ConfigureAwait(false);
+            var input = await ReadLineRealtimeAsync("请选择> ", RenderMainMenu, cancellationToken).ConfigureAwait(false);
             if (input is null) return;
             input = input.Trim();
             if (input.Length == 0) continue;
@@ -152,7 +152,7 @@ public sealed class ConsoleMenu
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(a.Name, 15)}{a.Description}{usage}{frame}");
             }
             Console.WriteLine("  [0] 返回  [p] 暂停面板  [c] 切换颜色");
-            var input = await ReadLineRealtimeAsync("选择> ", () => RenderCategoryMenu(category)).ConfigureAwait(false);
+            var input = await ReadLineRealtimeAsync("选择> ", () => RenderCategoryMenu(category), cancellationToken).ConfigureAwait(false);
             if (input is null) return;
             input = input.Trim();
             if (input.Length == 0) continue;
@@ -171,7 +171,7 @@ public sealed class ConsoleMenu
             if (int.TryParse(input, out int idx) && idx >= 1 && idx <= category.Actions.Count)
             {
                 var action = category.Actions[idx - 1];
-                var args = await PromptArgsAsync(action).ConfigureAwait(false);
+                var args = await PromptArgsAsync(action, cancellationToken).ConfigureAwait(false);
                 if (args is null) continue;
                 await ExecuteAsync(action, args, cancellationToken).ConfigureAwait(false);
                 continue;
@@ -181,12 +181,12 @@ public sealed class ConsoleMenu
         }
     }
 
-    private async Task<string[]?> PromptArgsAsync(McuAction action)
+    private async Task<string[]?> PromptArgsAsync(McuAction action, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(action.Usage)) return Array.Empty<string>();
         var line = await ReadLineRealtimeAsync(
             $"  参数（{action.Usage}，直接回车用默认值）> ",
-            () => RenderCategoryScreen(McuActionRegistry.FindCategory(action.Category)!)).ConfigureAwait(false);
+            () => RenderCategoryScreen(McuActionRegistry.FindCategory(action.Category)!), cancellationToken).ConfigureAwait(false);
         if (line is null) return null;
         line = line.Trim();
         return line.Length == 0 ? Array.Empty<string>() : line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -260,7 +260,7 @@ public sealed class ConsoleMenu
         Console.WriteLine($"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
         Console.WriteLine("  其它输入     放弃，不发送任何命令");
         Console.WriteLine("  自动化场景请直接用命令行：SeewoMCUController.exe lock lock");
-        var input = (await ReadLineRealtimeAsync("请输入> ", RenderMainScreen).ConfigureAwait(false))?.Trim();
+        var input = (await ReadLineRealtimeAsync("请输入> ", RenderMainScreen, cancellationToken).ConfigureAwait(false))?.Trim();
         if (string.Equals(input, "lock", StringComparison.OrdinalIgnoreCase))
             return true;
 
@@ -376,8 +376,10 @@ public sealed class ConsoleMenu
         Console.WriteLine("  [0] 返回  [p] 暂停面板  [c] 切换颜色");
     }
 
-    private async Task<string?> ReadLineRealtimeAsync(string prompt, Action redraw)
+    private async Task<string?> ReadLineRealtimeAsync(string prompt, Action redraw, CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested) return null;
+
         if (Console.IsInputRedirected)
         {
             Console.Write(prompt);
@@ -387,7 +389,7 @@ public sealed class ConsoleMenu
         var buffer = new StringBuilder();
         long seenVersion = Interlocked.Read(ref _eventVersion);
         Console.Write(prompt);
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             while (Console.KeyAvailable)
             {
@@ -426,8 +428,17 @@ public sealed class ConsoleMenu
                 Console.Write(prompt);
                 Console.Write(buffer.ToString());
             }
-            await Task.Delay(50).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
         }
+
+        return null;
     }
 
     private void RenderCategoryScreen(McuCategory category)

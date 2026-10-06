@@ -36,14 +36,18 @@ namespace SeewoMCUController.Mcu
 
         public bool Connect(string deviceName)
         {
+            Disconnect();
             try
             {
                 _hWriteFile = WindowsApi.CreateFile(deviceName, GenericWrite, FileShareRead | FileShareWrite, IntPtr.Zero, OpenExisting, FileAttributeNormal, IntPtr.Zero);
                 _hReadFile = WindowsApi.CreateFile(deviceName, GenericRead, FileShareRead | FileShareWrite, IntPtr.Zero, OpenExisting, FileAttributeNormal, IntPtr.Zero);
-                return IsConnected;
+                if (IsConnected) return true;
+                Disconnect();
+                return false;
             }
             catch
             {
+                Disconnect();
                 return false;
             }
         }
