@@ -8,28 +8,65 @@ namespace SeewoMCUController.Ui;
 public sealed class ConsoleMenu
 {
     private const int AutoUnlockDelaySeconds = 10;
+    private const int MaxEventLines = 200;
 
     private readonly McuDevice _device;
-    private readonly List<string> _notices = new();
-    private readonly object _noticeGate = new();
+    private readonly List<ConsoleEventLine> _eventLines = new();
+    private readonly object _eventGate = new();
+    private bool _panelPaused;
+    private ConsoleEventLine[]? _pausedEvents;
 
     public ConsoleMenu(McuDevice device)
     {
         _device = device;
         _device.Inbound += OnInbound;
         _device.StatusChanged += OnStatus;
+        _device.Link.LogAppended += OnLogAppended;
+
+        foreach (var entry in _device.Link.SnapshotLog())
+        {
+            if (entry.Outgoing)
+            {
+                AddEvent(ConsoleEventLine.FromLog(entry));
+                continue;
+            }
+
+            try
+            {
+                AddEvent(ConsoleEventLine.FromInbound(McuInbound.Decode(entry.Frame), entry.Timestamp));
+            }
+            catch
+            {
+                AddEvent(ConsoleEventLine.FromLog(entry));
+            }
+        }
     }
 
-    private void OnInbound(McuInboundEvent evt) => Push($"<- {evt}");
+    private void OnInbound(McuInboundEvent evt) => AddEvent(ConsoleEventLine.FromInbound(evt));
 
-    private void OnStatus(string text) => Push($"· {text}");
+    private void OnStatus(string text) => AddEvent(new ConsoleEventLine(
+        DateTime.Now, "·", "链路", text, string.Empty, ConsoleColor.DarkGray));
 
-    private void Push(string text)
+    private void OnLogAppended(McuLogEntry entry)
     {
-        lock (_noticeGate)
+        if (entry.Outgoing) AddEvent(ConsoleEventLine.FromLog(entry));
+    }
+
+    private void AddEvent(ConsoleEventLine line)
+    {
+        lock (_eventGate)
         {
-            _notices.Add(text);
-            if (_notices.Count > 50) _notices.RemoveAt(0);
+            _eventLines.Add(line);
+            if (_eventLines.Count > MaxEventLines) _eventLines.RemoveRange(0, _eventLines.Count - MaxEventLines);
+        }
+    }
+
+    private void TogglePanelPause()
+    {
+        lock (_eventGate)
+        {
+            _panelPaused = !_panelPaused;
+            _pausedEvents = _panelPaused ? _eventLines.ToArray() : null;
         }
     }
 
@@ -44,10 +81,9 @@ public sealed class ConsoleMenu
     /// <summary>主循环。</summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        Banner();
         while (!cancellationToken.IsCancellationRequested)
         {
-            RenderNotices();
+            RenderMainScreen();
             McuActionRegistry.RenderState(_device);
             Console.WriteLine();
             Console.WriteLine("主菜单");
@@ -56,7 +92,7 @@ public sealed class ConsoleMenu
                 var c = McuActionRegistry.Categories[i];
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(c.Title, 14)}{c.Hint}");
             }
-            Console.WriteLine("  [h] 帮助      [d] 重新握手    [q] 退出");
+            Console.WriteLine("  [h] 帮助  [d] 握手  [p] 暂停面板  [c] 切换颜色  [q] 退出");
             Console.Write("请选择> ");
 
             var input = Console.ReadLine();
@@ -75,6 +111,14 @@ public sealed class ConsoleMenu
                 case "help":
                 case "?":
                     PrintHelp();
+                    continue;
+                case "p":
+                case "pause":
+                    TogglePanelPause();
+                    continue;
+                case "c":
+                case "color":
+                    ConsoleTheme.ToggleColors();
                     continue;
                 case "d":
                     await RunCategoryAsync("system", "handshake-seq", cancellationToken).ConfigureAwait(false);
@@ -96,7 +140,7 @@ public sealed class ConsoleMenu
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            RenderNotices();
+            RenderCategoryScreen(category);
             Console.WriteLine();
             Console.WriteLine($"== {category.Title} ==  {category.Hint}");
             for (int i = 0; i < category.Actions.Count; i++)
@@ -106,7 +150,7 @@ public sealed class ConsoleMenu
                 string frame = string.IsNullOrEmpty(a.Frame) ? string.Empty : $"  {a.Frame}";
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(a.Name, 15)}{a.Description}{usage}{frame}");
             }
-            Console.WriteLine("  [0] 返回主菜单");
+            Console.WriteLine("  [0] 返回  [p] 暂停面板  [c] 切换颜色");
             Console.Write("选择> ");
 
             var input = Console.ReadLine();
@@ -114,6 +158,16 @@ public sealed class ConsoleMenu
             input = input.Trim();
             if (input.Length == 0) continue;
             if (input is "0" or "b" or "back" or "q") return;
+            if (input is "p" or "pause")
+            {
+                TogglePanelPause();
+                continue;
+            }
+            if (input is "c" or "color")
+            {
+                ConsoleTheme.ToggleColors();
+                continue;
+            }
 
             if (int.TryParse(input, out int idx) && idx >= 1 && idx <= category.Actions.Count)
             {
@@ -269,18 +323,81 @@ public sealed class ConsoleMenu
         if (autoUnlockLater) await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private void RenderNotices()
+    private void RenderMainScreen()
     {
-        string[] lines;
-        lock (_noticeGate) lines = _notices.ToArray();
-        if (lines.Length == 0) return;
-        Console.WriteLine("---- 最近事件 ----");
-        foreach (var line in lines)
+        ClearScreen();
+        Banner();
+        RenderEventPanel();
+    }
+
+    private void RenderCategoryScreen(McuCategory category)
+    {
+        ClearScreen();
+        Banner();
+        RenderEventPanel();
+    }
+
+    private void RenderEventPanel()
+    {
+        Console.WriteLine();
+        Console.WriteLine($"---- MCU 事件面板（最近 {PanelRowCount()} 条，{(_panelPaused ? "已暂停" : "实时")}，颜色：{ConsoleTheme.ColorState}） ----");
+        Console.WriteLine("时间     方向 分类       事件                         详情");
+
+        ConsoleEventLine[] lines;
+        lock (_eventGate) lines = _panelPaused ? _pausedEvents ?? Array.Empty<ConsoleEventLine>() : _eventLines.ToArray();
+        int skip = Math.Max(0, lines.Length - PanelRowCount());
+        if (lines.Length == 0)
         {
-            Console.WriteLine("  " + line);
+            ConsoleTheme.WriteLine("（等待 MCU 事件；收到上行帧后会在这里显示解析结果）", ConsoleColor.DarkGray);
         }
-        Console.WriteLine("------------------");
-        _notices.Clear();
+        else if (_panelPaused)
+        {
+            skip = Math.Max(0, Math.Min(skip, lines.Length - PanelRowCount()));
+            RenderLines(lines, skip);
+        }
+        else
+        {
+            RenderLines(lines, skip);
+        }
+        Console.WriteLine("-----------------------------------------------");
+    }
+
+    private static void RenderLines(ConsoleEventLine[] lines, int skip)
+    {
+        for (int i = skip; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            string prefix = $"{line.Timestamp:HH:mm:ss}  {line.Direction}  {TextWidth.Pad(line.Category, 10)}";
+            string body = $"{TextWidth.Truncate(line.Event, 28),-28}  {TextWidth.Truncate(line.Detail, 70)}";
+            ConsoleTheme.Write(prefix, ConsoleColor.DarkGray);
+            ConsoleTheme.Write(body, line.Color, bold: line.Direction == "←");
+            Console.WriteLine();
+        }
+    }
+
+    private static int PanelRowCount()
+    {
+        try
+        {
+            return Math.Clamp((Console.WindowHeight - 16) / 2, 5, 12);
+        }
+        catch (IOException)
+        {
+            return 8;
+        }
+    }
+
+    private static void ClearScreen()
+    {
+        if (Console.IsOutputRedirected) return;
+        try
+        {
+            Console.Clear();
+        }
+        catch (IOException)
+        {
+            // Some redirected/embedded terminals reject Clear; keep the stream usable.
+        }
     }
 
     public static void Warn(string text)
@@ -306,6 +423,11 @@ public sealed class ConsoleMenu
 
     public static void PrintHelp()
     {
+        Console.WriteLine("TUI 提示：事件面板显示解析后的 MCU→PC 事件与 PC→MCU 发送帧。");
+        Console.WriteLine("  p / pause  暂停或恢复事件面板滚动");
+        Console.WriteLine("  c / color  切换彩色/单色显示（NO_COLOR 环境变量默认关闭颜色）");
+        Console.WriteLine("  面板行数随终端高度变化；扩大窗口可看到更多历史事件。");
+        Console.WriteLine();
         Console.WriteLine("命令格式:  <分类> <动作> [参数]     例: audio volume 60");
         Console.WriteLine("          也可直接写动作名        例: mute / channel switch hdmi 1");
         Console.WriteLine();
