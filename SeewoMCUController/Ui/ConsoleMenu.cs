@@ -7,6 +7,8 @@ namespace SeewoMCUController.Ui;
 /// <summary>行式控制台菜单。输入既支持序号，也支持直接键入命令名或 <c>分类.动作 参数</c>。</summary>
 public sealed class ConsoleMenu
 {
+    private const int AutoUnlockDelaySeconds = 10;
+
     private readonly McuDevice _device;
     private readonly List<string> _notices = new();
     private readonly object _noticeGate = new();
@@ -186,8 +188,66 @@ public sealed class ConsoleMenu
         await ExecuteAsync(found, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>需要二次确认的动作：锁 Android 屏（<c>lock lock</c>）。</summary>
+    private static bool NeedsLockGuard(McuAction action) =>
+        action.Category == "lock" && action.Matches("lock");
+
+    /// <summary>
+    /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续（锁屏并在 <see cref="AutoUnlockDelaySeconds"/> 秒后自动解锁，
+    /// 此时 <paramref name="autoUnlockLater"/> 置 true）；其余输入视为放弃，不发送任何命令。
+    /// 返回 true 表示允许继续。
+    /// </summary>
+    private Task<bool> ConfirmLockScreenAsync(out bool autoUnlockLater, CancellationToken cancellationToken)
+    {
+        autoUnlockLater = false;
+        Console.WriteLine();
+        Console.WriteLine("==============================================");
+        Console.WriteLine("  此功能只应当搭配自动化使用，手动触发无异于吞下赛博灯泡！");
+        Console.WriteLine("==============================================");
+        Console.WriteLine($"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
+        Console.WriteLine("  其它输入     放弃，不发送任何命令");
+        Console.WriteLine("  自动化场景请直接用命令行：SeewoMCUController.exe lock lock");
+        Console.Write("请输入> ");
+
+        var input = Console.ReadLine()?.Trim();
+        if (string.Equals(input, "lock", StringComparison.OrdinalIgnoreCase))
+        {
+            autoUnlockLater = true;
+            return Task.FromResult(true);
+        }
+
+        Warn("已放弃锁屏（未发送任何命令）");
+        return Task.FromResult(false);
+    }
+
+    /// <summary>锁屏后等待 <see cref="AutoUnlockDelaySeconds"/> 秒，再发送一帧 <c>(0x36,0x12)</c> 解锁。</summary>
+    private async Task AutoUnlockLaterAsync(CancellationToken cancellationToken)
+    {
+        for (int i = AutoUnlockDelaySeconds; i > 0; i--)
+        {
+            Console.Write($"\r  已锁定，{i} 秒后自动解锁 Android 屏…   ");
+            try
+            {
+                await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+        Console.WriteLine("\r  自动解锁 Android 屏                    ");
+        bool sent = _device.Send(McuOutbound.UnlockScreen());
+        Console.WriteLine(sent ? "[OK] 已发送 (0x36,0x12) 解锁 Android 屏" : $"[ERR] 自动解锁发送失败：{NotConnectedHint()}");
+    }
+
+    private string NotConnectedHint() => _device.IsConnected ? "写入失败" : "未连接设备";
+
     public async Task ExecuteAsync(McuAction action, string[] args, CancellationToken cancellationToken)
     {
+        bool autoUnlockLater = false;
+        if (NeedsLockGuard(action) && !await ConfirmLockScreenAsync(out autoUnlockLater, cancellationToken).ConfigureAwait(false))
+            return;
+
         try
         {
             var result = await action.ExecuteAsync(_device, args, cancellationToken).ConfigureAwait(false);
@@ -205,6 +265,8 @@ public sealed class ConsoleMenu
         {
             Warn($"执行失败: {ex.Message}");
         }
+
+        if (autoUnlockLater) await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void RenderNotices()
