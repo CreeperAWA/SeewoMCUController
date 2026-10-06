@@ -198,10 +198,6 @@ namespace SeewoMCUController.Mcu
 
             }
             catch { }
-            if (ok)
-            {
-                Thread.Sleep(80);
-            }
             return ok;
         }
 

@@ -19,17 +19,16 @@ public static class McuFrameCodec
             mode = FrameMode.Framed;
             offset = McuFrame.TransportHeaderSize;
         }
-        else if (raw[0] != McuFrame.FrameTypeOk)
+        else if (raw[0] == McuFrame.FrameTypeOk)
         {
-            // 少数固件会在报告首字节填别的值，扫描 0xFB 作为兜底
-            int found = Array.IndexOf(raw, McuFrame.FrameTypeOk, 1, McuFrame.Size - 1);
-            if (found < 0) return false;
-            mode = FrameMode.Framed;
-            offset = found;
+            offset = 0;
         }
         else
         {
-            offset = 0;
+            // McuLib only accepts a raw report beginning with 0xFB or a
+            // transport report beginning with 0xFC; it does not resync inside
+            // an arbitrary HID report.
+            return false;
         }
 
         // 带头模式下只前移 0x3A = 58 字节（f[5..57] 为上行负载上限），
