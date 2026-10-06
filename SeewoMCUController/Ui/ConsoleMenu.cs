@@ -1,6 +1,7 @@
 using SeewoMCUController.Commands;
 using SeewoMCUController.Mcu;
 using SeewoMCUController.Mcu.Protocol;
+using System.Text;
 
 namespace SeewoMCUController.Ui;
 
@@ -15,6 +16,7 @@ public sealed class ConsoleMenu
     private readonly object _eventGate = new();
     private bool _panelPaused;
     private ConsoleEventLine[]? _pausedEvents;
+    private long _eventVersion;
 
     public ConsoleMenu(McuDevice device)
     {
@@ -59,6 +61,7 @@ public sealed class ConsoleMenu
             _eventLines.Add(line);
             if (_eventLines.Count > MaxEventLines) _eventLines.RemoveRange(0, _eventLines.Count - MaxEventLines);
         }
+        Interlocked.Increment(ref _eventVersion);
     }
 
     private void TogglePanelPause()
@@ -93,9 +96,7 @@ public sealed class ConsoleMenu
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(c.Title, 14)}{c.Hint}");
             }
             Console.WriteLine("  [h] 帮助  [d] 握手  [p] 暂停面板  [c] 切换颜色  [q] 退出");
-            Console.Write("请选择> ");
-
-            var input = Console.ReadLine();
+            var input = await ReadLineRealtimeAsync("请选择> ", RenderMainMenu).ConfigureAwait(false);
             if (input is null) return;
             input = input.Trim();
             if (input.Length == 0) continue;
@@ -151,9 +152,7 @@ public sealed class ConsoleMenu
                 Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(a.Name, 15)}{a.Description}{usage}{frame}");
             }
             Console.WriteLine("  [0] 返回  [p] 暂停面板  [c] 切换颜色");
-            Console.Write("选择> ");
-
-            var input = Console.ReadLine();
+            var input = await ReadLineRealtimeAsync("选择> ", () => RenderCategoryMenu(category)).ConfigureAwait(false);
             if (input is null) return;
             input = input.Trim();
             if (input.Length == 0) continue;
@@ -185,8 +184,9 @@ public sealed class ConsoleMenu
     private async Task<string[]?> PromptArgsAsync(McuAction action)
     {
         if (string.IsNullOrEmpty(action.Usage)) return Array.Empty<string>();
-        Console.Write($"  参数（{action.Usage}，直接回车用默认值）> ");
-        var line = Console.ReadLine();
+        var line = await ReadLineRealtimeAsync(
+            $"  参数（{action.Usage}，直接回车用默认值）> ",
+            () => RenderCategoryScreen(McuActionRegistry.FindCategory(action.Category)!)).ConfigureAwait(false);
         if (line is null) return null;
         line = line.Trim();
         return line.Length == 0 ? Array.Empty<string>() : line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -247,13 +247,12 @@ public sealed class ConsoleMenu
         action.Category == "lock" && action.Matches("lock");
 
     /// <summary>
-    /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续（锁屏并在 <see cref="AutoUnlockDelaySeconds"/> 秒后自动解锁，
-    /// 此时 <paramref name="autoUnlockLater"/> 置 true）；其余输入视为放弃，不发送任何命令。
+    /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续（锁屏并在 <see cref="AutoUnlockDelaySeconds"/> 秒后自动解锁）；
+    /// 其余输入视为放弃，不发送任何命令。
     /// 返回 true 表示允许继续。
     /// </summary>
-    private Task<bool> ConfirmLockScreenAsync(out bool autoUnlockLater, CancellationToken cancellationToken)
+    private async Task<bool> ConfirmLockScreenAsync(CancellationToken cancellationToken)
     {
-        autoUnlockLater = false;
         Console.WriteLine();
         Console.WriteLine("==============================================");
         Console.WriteLine("  此功能只应当搭配自动化使用，手动触发无异于吞下赛博灯泡！");
@@ -261,17 +260,12 @@ public sealed class ConsoleMenu
         Console.WriteLine($"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
         Console.WriteLine("  其它输入     放弃，不发送任何命令");
         Console.WriteLine("  自动化场景请直接用命令行：SeewoMCUController.exe lock lock");
-        Console.Write("请输入> ");
-
-        var input = Console.ReadLine()?.Trim();
+        var input = (await ReadLineRealtimeAsync("请输入> ", RenderMainScreen).ConfigureAwait(false))?.Trim();
         if (string.Equals(input, "lock", StringComparison.OrdinalIgnoreCase))
-        {
-            autoUnlockLater = true;
-            return Task.FromResult(true);
-        }
+            return true;
 
         Warn("已放弃锁屏（未发送任何命令）");
-        return Task.FromResult(false);
+        return false;
     }
 
     /// <summary>锁屏后等待 <see cref="AutoUnlockDelaySeconds"/> 秒，再发送一帧 <c>(0x36,0x12)</c> 解锁。</summary>
@@ -291,21 +285,28 @@ public sealed class ConsoleMenu
         }
         Console.WriteLine("\r  自动解锁 Android 屏                    ");
         bool sent = _device.Send(McuOutbound.UnlockScreen());
-        Console.WriteLine(sent ? "[OK] 已发送 (0x36,0x12) 解锁 Android 屏" : $"[ERR] 自动解锁发送失败：{NotConnectedHint()}");
+        if (sent)
+        {
+            Console.WriteLine("[OK] 已发送 (0x36,0x12) 解锁 Android 屏");
+        }
+        else
+        {
+            Warn($"自动解锁发送失败：{NotConnectedHint()}");
+        }
     }
 
     private string NotConnectedHint() => _device.IsConnected ? "写入失败" : "未连接设备";
 
     public async Task ExecuteAsync(McuAction action, string[] args, CancellationToken cancellationToken)
     {
-        bool autoUnlockLater = false;
-        if (NeedsLockGuard(action) && !await ConfirmLockScreenAsync(out autoUnlockLater, cancellationToken).ConfigureAwait(false))
+        bool guardedLock = NeedsLockGuard(action);
+        if (guardedLock && !await ConfirmLockScreenAsync(cancellationToken).ConfigureAwait(false))
             return;
 
         try
         {
             var result = await action.ExecuteAsync(_device, args, cancellationToken).ConfigureAwait(false);
-            if (!string.IsNullOrEmpty(result)) Console.WriteLine(result);
+            PrintResult(result);
         }
         catch (ArgumentException ex)
         {
@@ -320,7 +321,23 @@ public sealed class ConsoleMenu
             Warn($"执行失败: {ex.Message}");
         }
 
-        if (autoUnlockLater) await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
+        if (guardedLock) await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void PrintResult(string result)
+    {
+        if (string.IsNullOrEmpty(result)) return;
+        if (result.StartsWith("[ERR]", StringComparison.Ordinal))
+        {
+            AddEvent(new ConsoleEventLine(DateTime.Now, "!", "错误", result[5..].Trim(), string.Empty, ConsoleColor.Red));
+            ConsoleTheme.WriteLine(result, ConsoleColor.Red, bold: true);
+            return;
+        }
+
+        if (result.StartsWith("[OK]", StringComparison.Ordinal))
+            ConsoleTheme.WriteLine(result, ConsoleColor.Green);
+        else
+            Console.WriteLine(result);
     }
 
     private void RenderMainScreen()
@@ -328,6 +345,89 @@ public sealed class ConsoleMenu
         ClearScreen();
         Banner();
         RenderEventPanel();
+    }
+
+    private void RenderMainMenu()
+    {
+        RenderMainScreen();
+        McuActionRegistry.RenderState(_device);
+        Console.WriteLine();
+        Console.WriteLine("主菜单");
+        for (int i = 0; i < McuActionRegistry.Categories.Count; i++)
+        {
+            var c = McuActionRegistry.Categories[i];
+            Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(c.Title, 14)}{c.Hint}");
+        }
+        Console.WriteLine("  [h] 帮助  [d] 握手  [p] 暂停面板  [c] 切换颜色  [q] 退出");
+    }
+
+    private void RenderCategoryMenu(McuCategory category)
+    {
+        RenderCategoryScreen(category);
+        Console.WriteLine();
+        Console.WriteLine($"== {category.Title} ==  {category.Hint}");
+        for (int i = 0; i < category.Actions.Count; i++)
+        {
+            var a = category.Actions[i];
+            string usage = string.IsNullOrEmpty(a.Usage) ? string.Empty : "  " + a.Usage;
+            string frame = string.IsNullOrEmpty(a.Frame) ? string.Empty : $"  {a.Frame}";
+            Console.WriteLine($"  [{i + 1}] {TextWidth.Pad(a.Name, 15)}{a.Description}{usage}{frame}");
+        }
+        Console.WriteLine("  [0] 返回  [p] 暂停面板  [c] 切换颜色");
+    }
+
+    private async Task<string?> ReadLineRealtimeAsync(string prompt, Action redraw)
+    {
+        if (Console.IsInputRedirected)
+        {
+            Console.Write(prompt);
+            return Console.ReadLine();
+        }
+
+        var buffer = new StringBuilder();
+        long seenVersion = Interlocked.Read(ref _eventVersion);
+        Console.Write(prompt);
+        while (true)
+        {
+            while (Console.KeyAvailable)
+            {
+                var key = Console.ReadKey(intercept: true);
+                if (key.Key is ConsoleKey.Enter)
+                {
+                    Console.WriteLine();
+                    return buffer.ToString();
+                }
+                if (key.Key is ConsoleKey.Backspace)
+                {
+                    if (buffer.Length > 0)
+                    {
+                        buffer.Length--;
+                        Console.Write("\b \b");
+                    }
+                    continue;
+                }
+                if (key.Key is ConsoleKey.Escape)
+                {
+                    Console.WriteLine();
+                    return string.Empty;
+                }
+                if (!char.IsControl(key.KeyChar))
+                {
+                    buffer.Append(key.KeyChar);
+                    Console.Write(key.KeyChar);
+                }
+            }
+
+            long currentVersion = Interlocked.Read(ref _eventVersion);
+            if (currentVersion != seenVersion)
+            {
+                seenVersion = currentVersion;
+                redraw();
+                Console.Write(prompt);
+                Console.Write(buffer.ToString());
+            }
+            await Task.Delay(50).ConfigureAwait(false);
+        }
     }
 
     private void RenderCategoryScreen(McuCategory category)
@@ -400,11 +500,10 @@ public sealed class ConsoleMenu
         }
     }
 
-    public static void Warn(string text)
+    private void Warn(string text)
     {
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine(text);
-        Console.ResetColor();
+        AddEvent(new ConsoleEventLine(DateTime.Now, "!", "错误", text, string.Empty, ConsoleColor.Yellow));
+        ConsoleTheme.WriteLine($"[ERR] {text}", ConsoleColor.Yellow, bold: true);
     }
 
     public static void Info(string text)
