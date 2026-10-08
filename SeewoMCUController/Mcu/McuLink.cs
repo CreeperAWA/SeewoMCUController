@@ -68,6 +68,9 @@ public sealed class McuLink : IDisposable
     /// <summary>任意收发帧（用于日志与十六进制查看）。</summary>
     public event Action<McuLogEntry>? LogAppended;
 
+    /// <summary>报文日志被清空时触发（TUI 的日志窗据此同步清屏）。</summary>
+    public event Action? LogCleared;
+
     public long Sequence => Interlocked.Read(ref _sequence);
 
     public IReadOnlyList<McuLogEntry> SnapshotLog()
@@ -78,6 +81,7 @@ public sealed class McuLink : IDisposable
     public void ClearLog()
     {
         lock (_logGate) _log.Clear();
+        LogCleared?.Invoke();
     }
 
     // ------------------------------------------------------------------ 生命周期

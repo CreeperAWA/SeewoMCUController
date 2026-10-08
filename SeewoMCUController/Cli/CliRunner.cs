@@ -20,6 +20,10 @@ public sealed class CliOptions
     public string? ListCommands { get; private set; }
     public bool ListDevices { get; private set; }
     public int? QueryTimeoutMs { get; private set; }
+
+    /// <summary>以「独立日志窗口进程」模式启动（TUI 会自动拉起，一般无需手动使用）。</summary>
+    public bool LogWindow { get; private set; }
+
     public List<string> Rest { get; } = new();
 
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -65,6 +69,9 @@ public sealed class CliOptions
                     break;
                 case "--selftest":
                     options.Selftest = true;
+                    break;
+                case "--log-window":
+                    options.LogWindow = true;
                     break;
                 case "--categories":
                     options.ListCategories = true;
@@ -158,6 +165,7 @@ public sealed class CliOptions
         Console.WriteLine("      --timeout <毫秒>       查询类命令的回包等待时间（默认 2000）");
         Console.WriteLine("      --dry-run              只回显命令，不连接设备");
         Console.WriteLine("      --selftest             打印并校验全部命令的构造帧");
+        Console.WriteLine("      --log-window           以独立日志窗口进程启动（由 TUI 自动拉起，关闭任一窗口即退出全部）");
         Console.WriteLine("      --categories           列出全部分类");
         Console.WriteLine("      --commands [分类]      列出分类下的动作");
         Console.WriteLine("      --devices              枚举检测到的 MCU 设备");
@@ -192,6 +200,7 @@ public static class CliRunner
             CliOptions.PrintUsage();
             return 0;
         }
+        if (options.LogWindow) return LogWindowCli.Run();
         if (options.Selftest) return SelfTest.Run();
         if (options.ListCategories) return ListCategories();
         if (options.ListCommands is not null) return ListCommands(options.ListCommands);
@@ -250,7 +259,7 @@ public static class CliRunner
         using var device = CreateDevice(options);
         await device.ConnectAndHandshakeAsync(!options.NoHandshake, cancellationToken).ConfigureAwait(false);
 
-        var menu = new ConsoleMenu(device);
+        using var menu = new ConsoleMenu(device);
         await menu.RunAsync(cancellationToken).ConfigureAwait(false);
         device.Disconnect();
         return 0;
