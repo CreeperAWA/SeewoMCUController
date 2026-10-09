@@ -304,6 +304,12 @@ public static class McuInbound
                 Kind = InboundKind.Request,
                 AutoReply = "校验后回 (0x36,0x31)；正确再发 (0x36,0x12)",
             };
+            case Main36.StatusAck:
+                return TaggedResponse(frame, "Android status/credential response", "status data");
+            case Main36.SwitchStateAck:
+                return TaggedResponse(frame, "Android switch status response", "switch status");
+            case Main36.BinaryAck:
+                return TaggedResponse(frame, "Android binary response", "binary data");
             case Main36.UsbLockFileToPc:
             {
                 byte type = frame.PayloadByte(0);
@@ -335,6 +341,56 @@ public static class McuInbound
                     Name = "请求二维码信息",
                     Detail = string.Empty,
                     Kind = InboundKind.Request,
+                };
+            case Main36.RequestFileBack:
+                return new McuInboundEvent
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "Android requests unlock-file data",
+                    Detail = frame.PayloadLength == 0 ? "request next file chunk" : PayloadHex(frame),
+                    Kind = InboundKind.Request,
+                };
+            case Main36.PasswordResult:
+                return new McuInboundEvent
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "Password verification result",
+                    Detail = frame.PayloadByte(0) switch
+                    {
+                        0 => "rejected (0x00)",
+                        1 => "accepted (0x01)",
+                        var value => $"unknown result=0x{value:X2}",
+                    },
+                    Kind = InboundKind.State,
+                };
+            case Main36.StateAck:
+                return new McuInboundEvent
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "Android state response",
+                    Detail = PayloadHex(frame),
+                    Kind = InboundKind.State,
+                };
+            case Main36.Notice:
+                return new McuInboundEvent
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "Android channel-change notification",
+                    Detail = PayloadHex(frame),
+                    Kind = InboundKind.Notice,
+                };
+            case Main36.SnAck:
+                return new McuInboundEvent
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "Android serial-number acknowledgement",
+                    Detail = frame.PayloadLength == 0 ? "acknowledged" : PayloadHex(frame),
+                    Kind = InboundKind.State,
                 };
             case Main36.SerialNumber:
                 return new McuInboundEvent
@@ -427,4 +483,22 @@ public static class McuInbound
         }
         return sb.ToString();
     }
+
+    private static McuInboundEvent TaggedResponse(McuFrame frame, string name, string label)
+    {
+        byte tag = frame.PayloadByte(0);
+        int dataLength = Math.Max(0, frame.PayloadLength - 1);
+        string data = dataLength == 0 ? "empty" : Convert.ToHexString(frame.PayloadBytes(1, dataLength));
+        return new McuInboundEvent
+        {
+            Frame = frame,
+            Main = MainIn.Group36,
+            Name = name,
+            Detail = $"tag=0x{tag:X2}, {label}={data}",
+            Kind = InboundKind.State,
+        };
+    }
+
+    private static string PayloadHex(McuFrame frame) =>
+        frame.PayloadLength == 0 ? "empty" : Convert.ToHexString(frame.Payload);
 }
