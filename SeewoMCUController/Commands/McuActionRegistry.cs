@@ -24,6 +24,33 @@ public sealed class McuAction
     /// <summary>不需要连接设备即可执行。</summary>
     public bool Offline { get; init; }
 
+    /// <summary>
+    /// 该动作执行后进程必须驻留，不得立即退出。
+    /// <para>
+    /// 锁屏与口令相关的动作都靠这一点：安卓板收到 <c>(0x36,0x10)</c> 后才弹锁屏页，
+    /// 用户输完口令才会上报 <c>(0x36,0x30)</c>，PC 必须一直在才能应答。
+    /// 进程一退，屏幕就再也解不开。
+    /// </para>
+    /// </summary>
+    public bool MustHold { get; init; }
+
+    /// <summary>
+    /// 在命令行场景下，执行完还要补发一帧锁屏。
+    /// <para>
+    /// 只有 <c>set-password</c> 需要：它本身是纯本地动作（不发 MCU 命令），
+    /// 单次调用退出后口令随即丢失，什么也保护不了。命令行里把它接上锁屏，
+    /// 「设口令 + 锁屏 + 驻留等校验」才是一次完整的操作。TUI 中该标志不生效，
+    /// 菜单里设口令与锁屏仍是两个独立动作。
+    /// </para>
+    /// </summary>
+    public bool ChainLockScreen { get; init; }
+
+    /// <summary>
+    /// 该动作的参数不由 TUI 的通用单行提示采集，而由 <c>ConsoleMenu</c> 走专用交互流程
+    /// （例如 <c>lock set-password</c> 需要输入两遍口令）。
+    /// </summary>
+    public bool OwnInputPrompt { get; init; }
+
     public required Func<McuDevice, string[], CancellationToken, Task<string>> ExecuteAsync { get; init; }
 
     public bool Matches(string name) =>
@@ -151,6 +178,17 @@ public static class McuActionRegistry
 
     private const string NotConnected = "[ERR] 尚未连接设备";
 
+    /// <summary>
+    /// 锁屏命令的附加提示：口令是否已启用。
+    /// 未设置口令时 Android 端输入任何口令都能解锁，这里必须显眼地提醒。
+    /// </summary>
+    private static string LockScreenNote(McuDevice d) => d.HasLockPassword
+        ? $"  [口令已启用 · {d.LockPassword.Length} 位]"
+        : "  [!] 尚未设置锁屏口令：Android 端输入任何口令都能解锁（先执行 lock set-password）";
+
+    /// <summary>动作是否必须驻留：命令行里执行完不能直接退出，否则安卓板的上报无人应答。</summary>
+    public static bool RequiresHold(McuAction action) => action.MustHold;
+
     private static async Task<string> Query(string label, Task<string?> query)
     {
         var value = await query.ConfigureAwait(false);
@@ -167,7 +205,10 @@ public static class McuActionRegistry
         Func<McuDevice, string[], CancellationToken, Task<string>> exec,
         string usage = "",
         string[]? aliases = null,
-        bool offline = false) =>
+        bool offline = false,
+        bool ownInputPrompt = false,
+        bool mustHold = false,
+        bool chainLockScreen = false) =>
         new()
         {
             Category = category,
@@ -177,6 +218,9 @@ public static class McuActionRegistry
             Usage = usage,
             Frame = frame,
             Offline = offline,
+            OwnInputPrompt = ownInputPrompt,
+            MustHold = mustHold,
+            ChainLockScreen = chainLockScreen,
             ExecuteAsync = exec,
         };
 
@@ -295,10 +339,30 @@ public static class McuActionRegistry
         // ---------------- 锁屏
         var lockMenu = categories[3];
         lockMenu.Actions.Add(Act("lock", "lock", "锁 Android 屏", "(0x36,0x10)",
-            (d, _, _) => Send(d, () => McuOutbound.LockScreen()), "", new[] { "lockscreen" }));
+            (d, _, _) => Send(d, () => McuOutbound.LockScreen(), LockScreenNote(d)),
+            "", new[] { "lockscreen" }, false, false, mustHold: true));
         lockMenu.Actions.Add(Act("lock", "unlock", "解锁 Android 屏", "(0x36,0x12)",
             (d, _, _) => Send(d, () => McuOutbound.UnlockScreen()), "", new[] { "unlockscreen" }));
-        lockMenu.Actions.Add(Act("lock", "pwd", "回 (0x36,0x31)=校验通过并自动解锁", "(0x36,0x31)",
+        lockMenu.Actions.Add(Act("lock", "set-password", "设置锁屏口令（TUI 输入两遍确认；仅本机，不发 MCU 命令）", "",
+            (d, a, _) =>
+            {
+                d.LockPassword.Set(TextArg(a, 0, string.Empty));
+                var risks = LockPasswordStore.DescribeRisks(d.LockPassword.PlainText!);
+                string warn = risks.Count == 0 ? string.Empty : Environment.NewLine + string.Join(Environment.NewLine, risks);
+                return Task.FromResult($"[OK] 锁屏口令已设置（{d.LockPassword.Length} 位）；"
+                    + "校验方式与官方一致：MD5(安卓上行的口令负载) 小写十六进制比对；口令只保存在本进程内"
+                    + warn);
+            }, "<口令>", new[] { "setpwd" }, true, ownInputPrompt: true, mustHold: true, chainLockScreen: true));
+        lockMenu.Actions.Add(Act("lock", "clear-password", "清除锁屏口令（回到任何口令都能解锁）", "",
+            (d, _, _) =>
+            {
+                d.LockPassword.Clear();
+                return Task.FromResult("[OK] 锁屏口令已清除，之后安卓端输入任何口令都能解锁");
+            }, "", new[] { "clearpwd" }, true));
+        lockMenu.Actions.Add(Act("lock", "pwd-status", "查看锁屏口令状态（调试：含明文口令与 MD5）", "",
+            (d, _, _) => Task.FromResult($"[OK] {LockPasswordStore.AdviceLine1}{Environment.NewLine}    {LockPasswordStore.AdviceLine2}{Environment.NewLine}  口令：{d.LockPassword.Status}"),
+            "", new[] { "pwdinfo" }, true));
+        lockMenu.Actions.Add(Act("lock", "pwd", "回 (0x36,0x31)=口令校验结果并按配置解锁", "(0x36,0x31)",
             (d, a, _) =>
             {
                 if (!d.IsConnected) return Task.FromResult(NotConnected);
@@ -307,16 +371,11 @@ public static class McuActionRegistry
                 string extra = string.Empty;
                 if (ok && d.AutoUnlockOnPasswordAccepted && d.Send(McuOutbound.UnlockScreen()))
                     extra = "，并已发送 (0x36,0x12) 解锁";
-                return Task.FromResult($"{(sent ? "[OK]" : "[ERR]")} 口令{(ok ? "正确" : "错误")}，已回 (0x36,0x31)={(ok ? "0x01" : "0x00")}{extra}");
+                string mode = d.HasLockPassword
+                    ? $"（已启用口令，MD5 比对）"
+                    : "（未设置口令，一律判定为正确）";
+                return Task.FromResult($"{(sent ? "[OK]" : "[ERR]")} 口令{(ok ? "正确" : "错误")}，已回 (0x36,0x31)={(ok ? "0x01" : "0x00")}{extra}  {mode}");
             }, "<口令>", new[] { "password" }));
-        lockMenu.Actions.Add(Act("lock", "set-password", "记录参考口令（仅本机，不发 MCU 命令；校验一律通过）", "",
-            (d, a, _) =>
-            {
-                d.ScreenLockPassword = TextArg(a, 0, string.Empty);
-                return Task.FromResult(string.IsNullOrEmpty(d.ScreenLockPassword)
-                    ? "参考口令已清空（口令校验仍一律通过）"
-                    : $"参考口令已记录（{d.ScreenLockPassword.Length} 位，口令校验仍一律通过）");
-            }, "<口令>", new[] { "setpwd" }, true));
         lockMenu.Actions.Add(Act("lock", "file-back", "请求安卓板回传文件数据", "(0x36,0x33)",
             (d, _, _) => Send(d, () => McuOutbound.RequestFileBack())));
         lockMenu.Actions.Add(Act("lock", "sn-ack", "SN 接收确认", "(0x36,0x39)",
@@ -451,11 +510,12 @@ public static class McuActionRegistry
                 string confirmed = d.Link.ConfirmedFrameMode is { } m ? McuDevice.DescribeMode(m) : "未确认";
                 return Task.FromResult($"当前帧模式: {McuDevice.DescribeMode(d.FrameMode)}（上行确认: {confirmed}）");
             }, "[auto|raw|framed]", new[] { "mode" }, true));
-        link.Actions.Add(Act("link", "auto-reply", "开关上行自动应答（对时/口令/SN 确认/回传文件/U 盘弹窗）", "",
+        link.Actions.Add(Act("link", "auto-reply", "开关上行自动应答（对时/SN 确认/回传文件/U 盘弹窗；口令校验始终应答）", "",
             (d, a, _) =>
             {
                 if (a.Length > 0) d.AutoReply = IsOn(a[0]);
-                return Task.FromResult($"自动应答: {(d.AutoReply ? "开" : "关")}");
+                return Task.FromResult($"自动应答: {(d.AutoReply ? "开" : "关")}"
+                    + "  [注] 锁屏口令校验 (0x36,0x30) 始终自动应答，不受本开关影响");
             }, "[on|off]", Array.Empty<string>(), true));
         link.Actions.Add(Act("link", "inter-frame", "设置每帧发送前的节流延时（默认 50ms）", "",
             (d, a, _) =>
@@ -522,6 +582,7 @@ public static class McuActionRegistry
         Line("子通道索引", state.CurrentSubChannel?.ToString() ?? "未知");
         Line("最近对时", state.LastTimeSync?.ToString("yyyy-MM-dd HH:mm:ss") ?? "未同步");
         Line("最后拔出U盘", state.LastUsbDrive ?? "无");
+        Line("锁屏口令", device!.LockPassword.Status);
         if (device!.UsbId is { } id)
         {
             Line("VID:PID", $"0x{id.Vid:X4}:0x{id.Pid:X4}");

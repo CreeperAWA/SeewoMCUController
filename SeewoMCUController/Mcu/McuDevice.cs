@@ -44,6 +44,7 @@ public sealed class McuDevice : IDisposable
         _link = new McuLink(McuHunter.Usb) { AutoDetectFrameMode = true };
         _link.FrameReceived += OnFrameReceived;
         _link.LinkLost += reason => StatusChanged?.Invoke($"链路断开: {reason}");
+        LockPassword.DebugLog += text => PasswordLog?.Invoke(text);
     }
 
     public McuLink Link => _link;
@@ -68,15 +69,33 @@ public sealed class McuDevice : IDisposable
         }
     }
 
-    /// <summary>是否对上行请求自动应答（对时 / 口令校验 / SN 确认 / 回传文件 / U 盘弹窗）。</summary>
+    /// <summary>
+    /// 是否对上行请求自动应答（对时 / SN 确认 / 回传文件 / U 盘弹窗）。
+    /// <para>
+    /// <b>不包括锁屏口令校验</b>：<c>(0x36,0x30)</c> 的应答是无条件发出的，
+    /// 关闭本开关不会影响口令校验（详见 <see cref="ReplyScreenPassword"/>）。
+    /// </para>
+    /// </summary>
     public bool AutoReply
     {
         get => _autoReply;
-        set => _autoReply = value;
+        set
+        {
+            _autoReply = value;
+            StatusChanged?.Invoke(value
+                ? "自动应答: 开（口令校验始终自动应答）"
+                : "自动应答: 关（对时 / SN 确认 / 文件回传 / U 盘弹窗；口令校验仍然应答）");
+        }
     }
 
-    /// <summary>参考口令。本工具面向调试与自动化，不做本地口令比对，该值仅供记录与展示。</summary>
-    public string ScreenLockPassword { get; set; } = string.Empty;
+    /// <summary>
+    /// 锁 Android 屏的口令仓库：未设置口令时校验一律通过，设置后按官方实现做
+    /// <c>MD5(原始负载字节)</c> 小写十六进制比对。只存在于本进程内存中。
+    /// </summary>
+    public LockPasswordStore LockPassword { get; } = new();
+
+    /// <summary>是否已设置锁屏口令。</summary>
+    public bool HasLockPassword => LockPassword.IsSet;
 
     /// <summary>口令校验通过时是否自动追加一帧 <c>(0x36,0x12)</c> 解锁 Android 屏。</summary>
     public bool AutoUnlockOnPasswordAccepted { get; set; } = true;
@@ -89,6 +108,24 @@ public sealed class McuDevice : IDisposable
     public event Action<string>? StatusChanged;
 
     public event Action<McuDeviceState>? StateChanged;
+
+    /// <summary>
+    /// 锁屏口令的调试日志。<b>当前处于调试阶段，会把用户设置的明文口令一并打印</b>，
+    /// 以便排查 TUI / CLI 的误操作；正式发布前应关闭 <see cref="LockPasswordStore.DebugLog"/>。
+    /// </summary>
+    public event Action<string>? PasswordLog;
+
+    /// <summary>
+    /// 本进程已发出 <c>(0x36,0x12)</c> 解锁帧。
+    /// CLI 的 <c>--hold</c> 靠它判断 Android 屏是否已解开，从而提前结束驻留。
+    /// </summary>
+    public event Action? ScreenUnlocked;
+
+    /// <summary>仅供自检：模拟「已发出 (0x36,0x12)」，验证 CLI 驻留会因此提前结束。</summary>
+    internal void RaiseScreenUnlockedForTest() => ScreenUnlocked?.Invoke();
+
+    /// <summary>仅供自检：确认 <c>(0x36,0x30)</c> 会被识别为口令帧（该判定不受 AutoReply 影响）。</summary>
+    internal static bool IsScreenPasswordFrameForTest(McuFrame frame) => IsScreenPassword(frame);
 
     public static string DescribeMode(FrameMode mode) => mode switch
     {
@@ -334,10 +371,39 @@ public sealed class McuDevice : IDisposable
     // ------------------------------------------------------------------ 锁屏 / 远程协助
 
     /// <summary><c>(0x36,0x10)</c> 锁 Android 屏。</summary>
-    public bool LockScreen() => Send(McuOutbound.LockScreen());
+    public bool LockScreen()
+    {
+        bool ok = Send(McuOutbound.LockScreen());
+        if (ok)
+        {
+            ScreenLocked = true;
+            ScreenUnlocked?.Invoke();
+        }
+        return ok;
+    }
+
+    /// <summary>
+    /// 本进程是否已发出锁屏帧且尚未发出解锁帧。
+    /// <para>
+    /// 驻留期间据此拦住 <c>exit</c>：屏幕还锁着就退出，会让安卓板永远等不到口令应答。
+    /// </para>
+    /// </summary>
+    public bool ScreenLocked { get; private set; }
 
     /// <summary><c>(0x36,0x12)</c> 解锁 Android 屏。</summary>
-    public bool UnlockScreen() => Send(McuOutbound.UnlockScreen());
+    public bool UnlockScreen()
+    {
+        bool ok = Send(McuOutbound.UnlockScreen());
+        if (ok)
+        {
+            ScreenLocked = false;
+            ScreenUnlocked?.Invoke();
+        }
+        return ok;
+    }
+
+    /// <summary>仅供自检：模拟锁屏状态，用于验证 <c>exit</c> 拦截。</summary>
+    internal void SetScreenLockedForTest(bool locked) => ScreenLocked = locked;
 
     /// <summary><c>(0x36,0x31)</c> 口令校验结果。</summary>
     public bool ReplyPasswordResult(bool accepted) => Send(McuOutbound.PasswordResult(accepted));
@@ -409,7 +475,35 @@ public sealed class McuDevice : IDisposable
         var frame = evt.Frame;
         ApplyState(evt);
         Inbound?.Invoke(evt);
+
+        // 口令校验独立于 AutoReply：安卓板是先上报 (0x36,0x30) 才等 (0x36,0x31)，
+        // 漏掉这一帧应答就等于告诉安卓板「不解锁」，屏幕会一直锁着。
+        // 因此 --no-auto-reply 只关掉对时 / SN 确认 / 文件回传 / U 盘弹窗那类，
+        // 不能牵连口令校验。
+        if (IsScreenPassword(frame)) ReplyScreenPassword(frame);
         if (_autoReply) TryAutoReply(evt);
+    }
+
+    private static bool IsScreenPassword(McuFrame f) =>
+        f.Main == (byte)MainIn.Group36 && f.Sub == (byte)Main36.ScreenPassword;
+
+    /// <summary>
+    /// 校验安卓板上报的锁屏口令并应答：回 <c>(0x36,0x31)</c>（1 通过 / 0 不通过），
+    /// 通过时再发 <c>(0x36,0x12)</c> 解锁。与官方 <c>MCUService::HandleScreenPWD</c> 一致。
+    /// </summary>
+    private void ReplyScreenPassword(McuFrame f)
+    {
+        try
+        {
+            // 官方走 MD5(原始负载字节) 小写十六进制比对；未设置口令时一律为 true。
+            bool ok = CheckPassword(f.Payload);
+            Send(McuOutbound.PasswordResult(ok));
+            if (ok && AutoUnlockOnPasswordAccepted) UnlockScreen();
+        }
+        catch (Exception ex)
+        {
+            StatusChanged?.Invoke($"锁屏口令应答失败: {ex.Message}");
+        }
     }
 
     private void ApplyState(McuInboundEvent evt)
@@ -479,15 +573,9 @@ public sealed class McuDevice : IDisposable
                     Send(McuOutbound.SyncTimeNow());
                     break;
                 case (byte)MainIn.Group36:
+                    // ScreenPassword 已在 OnFrameReceived 里无条件处理，这里不重复应答。
                     switch ((Main36)f.Sub)
                     {
-                        case Main36.ScreenPassword:
-                        {
-                            bool ok = CheckPassword(evt.Detail);
-                            Send(McuOutbound.PasswordResult(ok));
-                            if (ok && AutoUnlockOnPasswordAccepted) Send(McuOutbound.UnlockScreen());
-                            break;
-                        }
                         case Main36.UsbLockFileToPc when f.PayloadByte(0) == 0xFF:
                             Send(McuOutbound.RequestFileBack());
                             break;
@@ -509,12 +597,17 @@ public sealed class McuDevice : IDisposable
         }
     }
 
-    /// <summary>口令校验。本工具面向调试与自动化，不做本地口令比对，一律认定为校验通过。</summary>
-    public bool CheckPassword(string password)
-    {
-        _ = password;
-        return true;
-    }
+    /// <summary>
+    /// 口令校验（<c>(0x36,0x30)</c> 的原始负载字节入口）。
+    /// <para>
+    /// 与官方一致：<c>MD5(负载字节)</c> 的 32 位小写十六进制与本地缓存的 <c>lockpwd</c> 比较。
+    /// <b>未设置口令时一律返回 <c>true</c></b>（任何口令都能解锁）。
+    /// </para>
+    /// </summary>
+    public bool CheckPassword(ReadOnlySpan<byte> rawPayload) => LockPassword.Verify(rawPayload);
+
+    /// <summary>口令校验（明文入口，等价于对 UTF-8 字节做同样的比对）。</summary>
+    public bool CheckPassword(string password) => LockPassword.Verify(password);
 
     // ------------------------------------------------------------------ 日志
 

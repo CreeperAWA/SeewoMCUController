@@ -56,6 +56,7 @@ public sealed class ConsoleMenu : IDisposable
         _device = device;
         _device.Inbound += OnInbound;
         _device.StatusChanged += OnStatus;
+        _device.PasswordLog += OnPasswordLog;
         _device.Link.LogAppended += OnLogAppended;
         _device.Link.LogCleared += OnLogCleared;
     }
@@ -95,6 +96,12 @@ public sealed class ConsoleMenu : IDisposable
     private void OnInbound(McuInboundEvent evt) => Publish(ConsoleEventLine.FromInbound(evt));
 
     private void OnStatus(string text) => Note("链路", "状态变化", text, ConsoleColor.DarkGray);
+
+    /// <summary>
+    /// 锁屏口令的调试日志。调试期会带着用户设置的明文口令一起打到日志窗，
+    /// 方便对着日志确认 TUI 里到底设成了什么。
+    /// </summary>
+    private void OnPasswordLog(string text) => Note("锁屏口令", "调试", text, ConsoleColor.Magenta);
 
     private void OnLogAppended(McuLogEntry entry)
     {
@@ -549,7 +556,9 @@ public sealed class ConsoleMenu : IDisposable
 
     private async Task<string[]?> PromptArgsAsync(McuCategory category, McuAction action, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(action.Usage)) return Array.Empty<string>();
+        // OwnInputPrompt 的动作（例如设置锁屏口令）参数要由 ExecuteAsync 走专用交互流程采集，
+        // 不能在这里用通用单行提示抢走。
+        if (action.OwnInputPrompt || string.IsNullOrEmpty(action.Usage)) return Array.Empty<string>();
         var line = await PromptAsync(
             () => BuildCategoryScreen(category),
             $"  参数（{action.Usage}，直接回车用默认值）> ",
@@ -614,28 +623,105 @@ public sealed class ConsoleMenu : IDisposable
     private static bool NeedsLockGuard(McuAction action) =>
         action.Category == "lock" && action.Matches("lock");
 
+    /// <summary>需要「输入两遍」确认口令的动作：<c>lock set-password</c>。</summary>
+    private static bool NeedsPasswordConfirm(McuAction action) =>
+        action.Category == "lock" && action.Matches("set-password");
+
+    /// <summary>
+    /// 锁 Android 屏二次确认的画面文案。抽成静态方法便于自检断言。
+    /// </summary>
+    internal static IReadOnlyList<string> BuildLockConfirmLines(McuDevice device)
+    {
+        var lines = new List<string>
+        {
+            "  此功能只应当搭配自动化使用，手动触发无异于吞下赛博灯泡！",
+            "",
+        };
+
+        if (device.HasLockPassword)
+        {
+            lines.Add($"  口令已启用（{device.LockPassword.Length} 位）：只有口令正确才会回 (0x36,0x31)=1 解锁。");
+        }
+        else
+        {
+            lines.Add("  [!] 尚未设置锁屏口令：锁上之后在 Android 上输入任何口令都能解锁！");
+            lines.Add("      建议先在 [4] 锁屏设置 → set-password 设置口令。");
+        }
+
+        lines.Add("");
+        lines.Add($"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
+        lines.Add("  其它输入     放弃，不发送任何命令");
+        lines.Add("  自动化场景请直接用命令行：SeewoMCUController.exe lock lock");
+        return lines;
+    }
+
     /// <summary>
     /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续（锁屏并在 <see cref="AutoUnlockDelaySeconds"/> 秒后自动解锁）；
     /// 其余输入视为放弃，不发送任何命令。
+    /// <para>
+    /// 尚未设置口令时会额外警示：锁上之后 Android 端输入任何口令都能解锁。
+    /// </para>
     /// 返回 true 表示允许继续。
     /// </summary>
     private async Task<bool> ConfirmLockScreenAsync(CancellationToken cancellationToken)
     {
         Terminal.ClearScreen();
-        var lines = new[]
-        {
-            "  此功能只应当搭配自动化使用，手动触发无异于吞下赛博灯泡！",
-            "",
-            $"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁",
-            "  其它输入     放弃，不发送任何命令",
-            "  自动化场景请直接用命令行：SeewoMCUController.exe lock lock",
-        };
+        var lines = BuildLockConfirmLines(_device);
+
         var input = await PromptModalAsync("锁 Android 屏 · 二次确认", lines, "请输入> ", cancellationToken).ConfigureAwait(false);
         if (string.Equals(input?.Trim(), "lock", StringComparison.OrdinalIgnoreCase))
             return true;
 
         Warn("已放弃锁屏（未发送任何命令）");
         return false;
+    }
+
+    /// <summary>
+    /// 设置锁屏口令的两次输入确认。返回要设置的明文口令；返回 <c>null</c> 表示放弃，
+    /// 此时原口令保持不变。
+    /// <para>
+    /// 口令只用普通文本输入，不做掩码：调试期需要在日志里留下明文才能对得上账。
+    /// </para>
+    /// </summary>
+    private async Task<string[]?> ConfirmNewPasswordAsync(CancellationToken cancellationToken)
+    {
+        var first = await PromptModalAsync("设置锁屏口令 · 第 1 次输入", new[]
+        {
+            "  口令可使用大小写字母、数字和符号。",
+            $"  {LockPasswordStore.AdviceLine1}",
+            $"  {LockPasswordStore.AdviceLine2}",
+            "",
+            "  口令只保存在本进程内，仅用于校验安卓板上行的 (0x36,0x30) 口令，不写盘、不发 MCU 命令。",
+            "  直接回车表示放弃设置。",
+        }, "请输入口令> ", cancellationToken).ConfigureAwait(false);
+        if (first is null) return null;
+        if (first.Length == 0)
+        {
+            Warn("口令不能为空，已放弃设置（原口令未改动）");
+            return null;
+        }
+
+        var risks = LockPasswordStore.DescribeRisks(first);
+        var confirmLines = new List<string>
+        {
+            $"  上一次输入了 {first.Length} 位。",
+        };
+        confirmLines.AddRange(risks);
+        if (risks.Count == 0)
+        {
+            confirmLines.Add("  [!] 长度合适且不含特殊字符，符合建议。");
+        }
+        confirmLines.Add("");
+        confirmLines.Add("  两次输入必须完全一致（区分大小写与符号）。直接回车表示放弃设置。");
+
+        var second = await PromptModalAsync("设置锁屏口令 · 第 2 次输入", confirmLines, "请再次输入> ", cancellationToken).ConfigureAwait(false);
+        if (second is null) return null;
+        if (!string.Equals(first, second, StringComparison.Ordinal))
+        {
+            Warn("两次输入的口令不一致，已放弃设置（原口令未改动）");
+            return null;
+        }
+        return new[] { first };
     }
 
     private string NotConnectedHint() => _device.IsConnected ? "写入失败" : "未连接设备";
@@ -690,6 +776,13 @@ public sealed class ConsoleMenu : IDisposable
 
     public async Task ExecuteAsync(McuAction action, string[] args, CancellationToken cancellationToken)
     {
+        // 设置锁屏口令：命令行直接给了口令就照用，没给（例如从菜单里选中）则交互输入两遍。
+        if (NeedsPasswordConfirm(action) && args.Length == 0)
+        {
+            args = await ConfirmNewPasswordAsync(cancellationToken).ConfigureAwait(false) ?? Array.Empty<string>();
+            if (args.Length == 0) return;
+        }
+
         bool guardedLock = NeedsLockGuard(action);
         if (guardedLock && !await ConfirmLockScreenAsync(cancellationToken).ConfigureAwait(false))
             return;
@@ -899,6 +992,8 @@ public sealed class ConsoleMenu : IDisposable
             new($"== {category.Title} ==  {category.Hint}", ConsoleColor.Cyan),
             new("状态  " + StatusSummary(), ConsoleColor.DarkGray),
         };
+        // 锁屏菜单把口令状态和 Android 输入法的兼容性提示常驻显示，避免用户忘记先设口令。
+        if (category.Key == "lock") rows.AddRange(LockPasswordRows());
 
         int room = Math.Max(1, CurrentLayout(!LogWindowAlive).Room - rows.Count - 1);
         int total = category.Actions.Count;
@@ -915,6 +1010,17 @@ public sealed class ConsoleMenu : IDisposable
             ? new($"  ↑↓ PgUp PgDn 滚动（第 {_scroll + 1}-{Math.Min(total, _scroll + room)} 项 / 共 {total} 项）", ConsoleColor.DarkGray)
             : new("  [0] 返回  [c] 颜色  [q] 返回主菜单", ConsoleColor.DarkGray));
         return rows;
+    }
+
+    /// <summary>锁屏菜单里常驻的口令状态与兼容性提示行。</summary>
+    private IEnumerable<ConsoleRow> LockPasswordRows()
+    {
+        var store = _device.LockPassword;
+        yield return store.IsSet
+            ? new ConsoleRow($"口令  已设置 · {store.Length} 位 · MD5 = {store.HashHex}", ConsoleColor.Green)
+            : new ConsoleRow("口令  未设置 —— 任何口令都能解锁，请先执行 [3] set-password", ConsoleColor.Yellow);
+        yield return new ConsoleRow("提示  " + LockPasswordStore.AdviceLine1, ConsoleColor.DarkGray);
+        yield return new ConsoleRow("      " + LockPasswordStore.AdviceLine2, ConsoleColor.DarkGray);
     }
 
     /// <summary>退出时关掉独立日志窗口（写端关闭 → 子进程读到 EOF 自行退出）。</summary>
