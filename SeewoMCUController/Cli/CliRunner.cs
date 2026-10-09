@@ -167,6 +167,7 @@ public sealed record CliOptions
                     {
                         options.Password = arg["--password=".Length..];
                         options.Hold = true;
+                        options.Verbose = true;
                     }
                     else if (lower is "categories" or "commands" or "devices" or "selftest")
                     {
@@ -415,25 +416,27 @@ public static class CliRunner
             var result = await action.ExecuteAsync(device, args, cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(result)) Console.WriteLine(result);
 
-            // set-password 本身是纯本地动作，单次调用退出后口令随即丢失、什么也保护不了。
-            // 命令行里给它补一帧锁屏，让「设口令 + 锁屏」成为一次完整操作。
+            bool holdReady = result.StartsWith("[OK]", StringComparison.Ordinal);
+
+            // 设置口令后立即锁屏，保证口令仍在当前进程中生效。
             if (action.ChainLockScreen && result.StartsWith("[OK]", StringComparison.Ordinal))
             {
                 if (device.IsConnected)
                 {
                     Console.WriteLine();
-                    Console.WriteLine(SendLockTracked(device, LockScreenNote(device)));
+                    string lockResult = SendLockTracked(device, LockScreenNote(device));
+                    Console.WriteLine(lockResult);
+                    holdReady = lockResult.StartsWith("[OK]", StringComparison.Ordinal);
                 }
                 else
                 {
                     Console.WriteLine("[ERR] 未连接设备，已设置口令但没有锁屏；口令仅在本进程有效。");
+                    holdReady = false;
                 }
             }
 
-            // 锁屏 / 设置口令这类动作必须驻留：安卓板是在收到 (0x36,0x10) 之后才弹锁屏页的，
-            // 用户输完口令才会上报 (0x36,0x30)。进程一退就没人应答，屏幕再也解不开。
-            // 所以动作自己声明 MustHold 时忽略 --hold 的缺省，直接驻留。
-            if ((options.Hold || action.MustHold) && result.StartsWith("[OK]", StringComparison.Ordinal))
+            // 锁屏动作必须驻留，直到解锁或取消。
+            if ((options.Hold || action.MustHold) && holdReady)
             {
                 // 锁屏类动作默认不限时：屏幕还锁着就不该自己退出。
                 // 只有用户显式给了 --hold-seconds 才启用时限。
@@ -456,59 +459,12 @@ public static class CliRunner
         }
     }
 
-    /// <summary>
-    /// 驻留等待解锁：持续应答上行请求（口令校验、SN 确认、文件回传…），
-    /// 直到收到解锁时机（口令校验通过）或超时。
-    /// <para>
-    /// 提前退出：收到口令校验通过并发出 <c>(0x36,0x12)</c>，或 Ctrl+C，或到达时限。
-    /// </para>
-    /// </summary>
-    /// <summary>等到解锁、到达时限或被取消为止，返回 true 表示是解锁导致的结束。</summary>
-    internal static async Task<bool> WaitForUnlockAsync(
-        McuDevice device,
-        int holdSeconds,
-        CancellationToken cancellationToken)
-    {
-        bool unlocked = false;
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        void OnUnlocked()
-        {
-            unlocked = true;
-            done.TrySetResult();
-        }
-
-        device.ScreenUnlocked += OnUnlocked;
-        // holdSeconds == 0 表示不限时：不设定时器，只等解锁或 Ctrl+C。
-        Timer? timer = holdSeconds > 0
-            ? new Timer(_ => done.TrySetResult(), null, holdSeconds * 1000L, Timeout.Infinite)
-            : null;
-        using var cancel = cancellationToken.Register(() => done.TrySetResult());
-        try
-        {
-            await done.Task.ConfigureAwait(false);
-        }
-        finally
-        {
-            timer?.Dispose();
-            device.ScreenUnlocked -= OnUnlocked;
-        }
-        return unlocked && !cancellationToken.IsCancellationRequested;
-    }
-
-    /// <summary>
-    /// 驻留循环：持续应答上行请求，同时接受命令行输入。
-    /// <list type="bullet">
-    /// <item>口令校验通过并发出 <c>(0x36,0x12)</c> → 自动结束（屏幕已解锁）。</item>
-    /// <item>输入 <c>unlock</c> / <c>lock unlock</c> → 解锁后结束。</item>
-    /// <item>输入 <c>exit</c> → 仅在屏幕<b>未</b>锁着时允许；锁着时会被拒绝。</item>
-    /// <item>Ctrl+C → 强制结束（不做拦截，属于操作系统级中断）。</item>
-    /// </list>
-    /// </summary>
+    /// <summary>驻留期间持续处理上行事件并接受交互命令。</summary>
     /// <summary>是否为驻留模式下的退出指令（<c>exit</c> / <c>quit</c> / <c>q</c>）。</summary>
     internal static bool IsExitCommand(string line) =>
         line.ToLowerInvariant() is "exit" or "quit" or "q";
 
-    /// <summary>自检路径下，脚本用尽后继续等待解锁信号的上限。</summary>
+    /// <summary>自检脚本结束后的短暂等待窗口。</summary>
     private const int ResidentProbeGraceMs = 250;
 
     /// <summary>
@@ -566,7 +522,12 @@ public static class CliRunner
                     Console.Write("驻留> ");
                     Console.Out.Flush();
                     line = await reader!.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-                    if (line is null) break; // 输入流结束（EOF）
+                    if (line is null)
+                    {
+                        // EOF 只表示不能再输入命令，不能结束锁屏应答服务。
+                        await unlocked.Task.ConfigureAwait(false);
+                        break;
+                    }
                 }
 
                 line = line.Trim();
@@ -576,7 +537,6 @@ public static class CliRunner
                 {
                     if (!CanExitResident(device))
                     {
-                        // 锁着就退出 = 安卓板永远等不到 (0x36,0x31)，屏幕再也解不开。
                         Console.WriteLine("[ERR] 屏幕仍处于锁屏状态，不能退出。");
                         Console.WriteLine("      请先输入 unlock 解锁，或在 Android 上输入口令解锁后再退出。");
                         continue;
@@ -603,8 +563,7 @@ public static class CliRunner
                 }
             }
 
-            // 自检路径：脚本用尽后不再读输入，但仍在等解锁信号 / 取消，给一个短的上限，
-            // 这样「exit 被拦截 → 循环没退出」与「解锁信号 → 循环结束」都能被稳定断言。
+            // 自检脚本不读取真实 stdin，避免测试永久阻塞。
             if (script is not null)
             {
                 await Task.WhenAny(
@@ -772,13 +731,7 @@ public static class CliRunner
 
     private static string DescribeHold(int seconds) => seconds <= 0 ? "不限时" : $"{seconds} 秒";
 
-    /// <summary>
-    /// 发送一帧并回显结果。驻留提示里也要用到，所以不能只依赖命令注册表里的那个。
-    /// <para>
-    /// 锁屏帧必须走 <see cref="McuDevice.LockScreen"/>（见 <c>SendTracked</c>），
-    /// 否则 <c>ScreenLocked</c> 不会被置位，<c>exit</c> 拦截就形同虚设。
-    /// </para>
-    /// </summary>
+    /// <summary>发送普通帧并回显结果。</summary>
     private static string Send(McuDevice device, Func<McuFrame> build, string note = "")
     {
         if (!device.IsConnected) return "[ERR] 尚未连接设备";
@@ -787,7 +740,7 @@ public static class CliRunner
         return $"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}";
     }
 
-    /// <summary>发锁屏帧并回显；走 <see cref="McuDevice.LockScreen"/> 以维护锁屏状态。</summary>
+    /// <summary>发送锁屏帧并更新本地锁屏状态。</summary>
     private static string SendLockTracked(McuDevice device, string note = "")
     {
         if (!device.IsConnected) return "[ERR] 尚未连接设备";

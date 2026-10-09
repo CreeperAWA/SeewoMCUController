@@ -422,37 +422,7 @@ public static class SelfTest
         Line("不传 --password 时不驻留",
             Parses(new[] { "lock", "unlock" }, out var p8, out _) && !p8.Hold && p8.Password is null);
 
-        // 解锁信号：驻留靠 ScreenUnlocked 提前结束。这里不发真实帧，
-        // 而是验证「触发解锁信号 → 驻留提前返回」与「时限到 → 正常返回」两条路径。
-        Line("无信号时按时限返回（不是提前结束）",
-            !CliRunner.WaitForUnlockAsync(new McuDevice(), 1, CancellationToken.None).GetAwaiter().GetResult());
-
-        // 注意：SetScreenLockedForTest(true) 不得触发 ScreenUnlocked，
-        // 否则「收到解锁信号前驻留仍在等待」这条断言就会失败——这正是 Issue1 的回归点。
-        var lockedHold = new McuDevice();
-        lockedHold.SetScreenLockedForTest(true);
-        Line("锁屏状态本身不会让驻留结束",
-            !CliRunner.WaitForUnlockAsync(lockedHold, 1, CancellationToken.None).GetAwaiter().GetResult());
-
-        var unlockedDevice = new McuDevice();
-        var hold = CliRunner.WaitForUnlockAsync(unlockedDevice, 30, CancellationToken.None);
-        Line("收到解锁信号前驻留仍在等待", !hold.IsCompleted);
-        // 必须先置为锁屏再解锁：ApplyScreenLocked 对「状态未变化」是幂等的，
-        // 而新建设备本来就处于未锁屏状态。
-        unlockedDevice.SetScreenLockedForTest(true);
-        Line("置为锁屏不会结束驻留", !hold.IsCompleted);
-        unlockedDevice.SetScreenLockedForTest(false);
-        Line("收到解锁信号后驻留提前结束",
-            hold.GetAwaiter().GetResult());
-        Line("触发后确实结束", hold.IsCompleted);
-        unlockedDevice.Dispose();
-
-        var cancelled = new CancellationTokenSource();
-        var cancelHold = CliRunner.WaitForUnlockAsync(new McuDevice(), 0, cancelled.Token);
-        cancelled.Cancel();
-        Line("取消令牌可结束不限时驻留", cancelHold.GetAwaiter().GetResult() == false);
-
-        // 驻留循环同样要在解锁信号下结束。
+        // 驻留循环应在解锁信号下结束，锁屏信号本身不能结束驻留。
         using var residentDevice = new McuDevice();
         var residentRun = CliRunner.RunResidentScriptAsync(residentDevice, Array.Empty<string>(), CancellationToken.None);
         residentDevice.SetScreenLockedForTest(true);

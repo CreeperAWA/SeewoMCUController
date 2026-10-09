@@ -133,7 +133,6 @@ public sealed class McuDevice : IDisposable
     /// </summary>
     public event Action<bool>? ScreenLockChanged;
 
-    
 
     /// <summary>仅供自检：确认 <c>(0x36,0x30)</c> 会被识别为口令帧（该判定不受 AutoReply 影响）。</summary>
     internal static bool IsScreenPasswordFrameForTest(McuFrame frame) => IsScreenPassword(frame);
@@ -389,13 +388,7 @@ public sealed class McuDevice : IDisposable
         return ok;
     }
 
-    /// <summary>
-    /// 记录锁屏状态并触发事件。与发送分离，便于在没有设备时验证事件语义。
-    /// <para>
-    /// 注意：锁屏<b>绝不</b>触发 <see cref="ScreenUnlocked"/>。锁屏是「开始需要应答」，
-    /// 不是「已解锁」；误触发会让 CLI 驻留立刻退出，安卓板再也等不到口令应答。
-    /// </para>
-    /// </summary>
+    /// <summary>更新本地锁屏状态并触发对应事件。</summary>
     private void ApplyScreenLocked(bool locked)
     {
         if (ScreenLocked == locked) return;

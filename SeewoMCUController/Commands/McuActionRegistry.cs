@@ -165,14 +165,7 @@ public static class McuActionRegistry
         return Task.FromResult($"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}");
     }
 
-    /// <summary>
-    /// 发送一帧并回显，同时把结果挂到句柄上。
-    /// <para>
-    /// 锁屏／解锁<b>必须</b>走这里而不是 <see cref="Send"/>：只有本方法会维护
-    /// <c>ScreenLocked</c> 状态并触发事件。绕过它就等于让 CLI 驻留的 <c>exit</c>
-    /// 拦截与自动结束全部失效。
-    /// </para>
-    /// </summary>
+    /// <summary>发送锁屏或解锁帧，并同步维护本地屏幕状态。</summary>
     private static Task<string> SendTracked(McuDevice device, Func<McuFrame> build, Func<bool> tracked, string note = "")
     {
         if (!device.IsConnected) return Task.FromResult(NotConnected);
