@@ -531,7 +531,7 @@ public static class CliRunner
 
                         // 锁屏状态下 EOF 不能终止驻留，否则后续密码请求无人处理。
                         await unlocked.Task.ConfigureAwait(false);
-                        break;
+                        continue;
                     }
                 }
 
