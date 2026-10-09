@@ -165,6 +165,22 @@ public static class McuActionRegistry
         return Task.FromResult($"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}");
     }
 
+    /// <summary>
+    /// 发送一帧并回显，同时把结果挂到句柄上。
+    /// <para>
+    /// 锁屏／解锁<b>必须</b>走这里而不是 <see cref="Send"/>：只有本方法会维护
+    /// <c>ScreenLocked</c> 状态并触发事件。绕过它就等于让 CLI 驻留的 <c>exit</c>
+    /// 拦截与自动结束全部失效。
+    /// </para>
+    /// </summary>
+    private static Task<string> SendTracked(McuDevice device, Func<McuFrame> build, Func<bool> tracked, string note = "")
+    {
+        if (!device.IsConnected) return Task.FromResult(NotConnected);
+        var frame = build();
+        bool ok = tracked();
+        return Task.FromResult($"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}");
+    }
+
     private static Task<string> Steps(McuDevice device, Func<int, bool> run, int count, string frame, string verb)
     {
         if (!device.IsConnected) return Task.FromResult(NotConnected);
@@ -339,10 +355,10 @@ public static class McuActionRegistry
         // ---------------- 锁屏
         var lockMenu = categories[3];
         lockMenu.Actions.Add(Act("lock", "lock", "锁 Android 屏", "(0x36,0x10)",
-            (d, _, _) => Send(d, () => McuOutbound.LockScreen(), LockScreenNote(d)),
+            (d, _, _) => SendTracked(d, () => McuOutbound.LockScreen(), d.LockScreen, LockScreenNote(d)),
             "", new[] { "lockscreen" }, false, false, mustHold: true));
         lockMenu.Actions.Add(Act("lock", "unlock", "解锁 Android 屏", "(0x36,0x12)",
-            (d, _, _) => Send(d, () => McuOutbound.UnlockScreen()), "", new[] { "unlockscreen" }));
+            (d, _, _) => SendTracked(d, () => McuOutbound.UnlockScreen(), d.UnlockScreen), "", new[] { "unlockscreen" }));
         lockMenu.Actions.Add(Act("lock", "set-password", "设置锁屏口令（TUI 输入两遍确认；仅本机，不发 MCU 命令）", "",
             (d, a, _) =>
             {
@@ -369,7 +385,7 @@ public static class McuActionRegistry
                 bool ok = d.CheckPassword(TextArg(a, 0, string.Empty));
                 bool sent = d.Send(McuOutbound.PasswordResult(ok));
                 string extra = string.Empty;
-                if (ok && d.AutoUnlockOnPasswordAccepted && d.Send(McuOutbound.UnlockScreen()))
+                if (ok && d.AutoUnlockOnPasswordAccepted && d.UnlockScreen())
                     extra = "，并已发送 (0x36,0x12) 解锁";
                 string mode = d.HasLockPassword
                     ? $"（已启用口令，MD5 比对）"

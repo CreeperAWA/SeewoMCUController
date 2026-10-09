@@ -117,12 +117,23 @@ public sealed class McuDevice : IDisposable
 
     /// <summary>
     /// 本进程已发出 <c>(0x36,0x12)</c> 解锁帧。
-    /// CLI 的 <c>--hold</c> 靠它判断 Android 屏是否已解开，从而提前结束驻留。
+    /// CLI 的驻留循环靠它结束等待。
+    /// <para>
+    /// <b>只在解锁时触发。</b>锁屏不触发这个事件——锁屏之后恰恰是最需要继续驻留的时候。
+    /// </para>
     /// </summary>
     public event Action? ScreenUnlocked;
 
-    /// <summary>仅供自检：模拟「已发出 (0x36,0x12)」，验证 CLI 驻留会因此提前结束。</summary>
-    internal void RaiseScreenUnlockedForTest() => ScreenUnlocked?.Invoke();
+    /// <summary>
+    /// 锁屏状态发生变化，参数为变化后的状态。
+    /// <para>
+    /// 与 <see cref="ScreenUnlocked"/> 分开：锁屏与解锁都会触发它，
+    /// 订阅方据此刷新界面或日志，不会把「锁上了」误当成「已解锁」。
+    /// </para>
+    /// </summary>
+    public event Action<bool>? ScreenLockChanged;
+
+    
 
     /// <summary>仅供自检：确认 <c>(0x36,0x30)</c> 会被识别为口令帧（该判定不受 AutoReply 影响）。</summary>
     internal static bool IsScreenPasswordFrameForTest(McuFrame frame) => IsScreenPassword(frame);
@@ -374,12 +385,23 @@ public sealed class McuDevice : IDisposable
     public bool LockScreen()
     {
         bool ok = Send(McuOutbound.LockScreen());
-        if (ok)
-        {
-            ScreenLocked = true;
-            ScreenUnlocked?.Invoke();
-        }
+        if (ok) ApplyScreenLocked(true);
         return ok;
+    }
+
+    /// <summary>
+    /// 记录锁屏状态并触发事件。与发送分离，便于在没有设备时验证事件语义。
+    /// <para>
+    /// 注意：锁屏<b>绝不</b>触发 <see cref="ScreenUnlocked"/>。锁屏是「开始需要应答」，
+    /// 不是「已解锁」；误触发会让 CLI 驻留立刻退出，安卓板再也等不到口令应答。
+    /// </para>
+    /// </summary>
+    private void ApplyScreenLocked(bool locked)
+    {
+        if (ScreenLocked == locked) return;
+        ScreenLocked = locked;
+        ScreenLockChanged?.Invoke(locked);
+        if (!locked) ScreenUnlocked?.Invoke();
     }
 
     /// <summary>
@@ -394,16 +416,15 @@ public sealed class McuDevice : IDisposable
     public bool UnlockScreen()
     {
         bool ok = Send(McuOutbound.UnlockScreen());
-        if (ok)
-        {
-            ScreenLocked = false;
-            ScreenUnlocked?.Invoke();
-        }
+        if (ok) ApplyScreenLocked(false);
         return ok;
     }
 
-    /// <summary>仅供自检：模拟锁屏状态，用于验证 <c>exit</c> 拦截。</summary>
-    internal void SetScreenLockedForTest(bool locked) => ScreenLocked = locked;
+    /// <summary>仅供自检：模拟「锁屏帧已发出」，用于验证事件语义与 <c>exit</c> 拦截。</summary>
+    internal void SetScreenLockedForTest(bool locked) => ApplyScreenLocked(locked);
+
+    /// <summary>仅供自检：模拟解锁信号（等价于 <c>(0x36,0x12)</c> 已发出）。</summary>
+    internal void RaiseScreenUnlockedForTest() => ApplyScreenLocked(false);
 
     /// <summary><c>(0x36,0x31)</c> 口令校验结果。</summary>
     public bool ReplyPasswordResult(bool accepted) => Send(McuOutbound.PasswordResult(accepted));

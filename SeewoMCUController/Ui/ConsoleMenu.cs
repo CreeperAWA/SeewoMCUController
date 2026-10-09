@@ -57,6 +57,7 @@ public sealed class ConsoleMenu : IDisposable
         _device.Inbound += OnInbound;
         _device.StatusChanged += OnStatus;
         _device.PasswordLog += OnPasswordLog;
+        _device.ScreenLockChanged += OnScreenLockChanged;
         _device.Link.LogAppended += OnLogAppended;
         _device.Link.LogCleared += OnLogCleared;
     }
@@ -102,6 +103,14 @@ public sealed class ConsoleMenu : IDisposable
     /// 方便对着日志确认 TUI 里到底设成了什么。
     /// </summary>
     private void OnPasswordLog(string text) => Note("锁屏口令", "调试", text, ConsoleColor.Magenta);
+
+    /// <summary>
+    /// 锁屏状态变化。锁屏与解锁都记一条，便于在日志里对上「什么时候锁的、什么时候解的」。
+    /// </summary>
+    private void OnScreenLockChanged(bool locked) => Note(
+        "屏幕锁", locked ? "已锁屏" : "已解锁",
+        locked ? "已发送 (0x36,0x10)" : "已发送 (0x36,0x12)",
+        locked ? ConsoleColor.Yellow : ConsoleColor.Green);
 
     private void OnLogAppended(McuLogEntry entry)
     {
@@ -759,7 +768,9 @@ public sealed class ConsoleMenu : IDisposable
             }
         }
 
-        bool sent = _device.Send(McuOutbound.UnlockScreen());
+        // 走 UnlockScreen() 而不是裸 Send：这样 ScreenLocked 才会被清掉，
+        // 状态显示与 exit 拦截才知道屏幕已经解锁了。
+        bool sent = _device.UnlockScreen();
             Say(sent ? "[OK] 已发送 (0x36,0x12) 解锁 Android 屏" : "[ERR] 自动解锁发送失败：" + NotConnectedHint(),
                 sent ? ConsoleColor.Green : ConsoleColor.Red);
 

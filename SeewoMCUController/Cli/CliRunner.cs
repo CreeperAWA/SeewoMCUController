@@ -422,7 +422,7 @@ public static class CliRunner
                 if (device.IsConnected)
                 {
                     Console.WriteLine();
-                    Console.WriteLine(Send(device, () => McuOutbound.LockScreen(), LockScreenNote(device)));
+                    Console.WriteLine(SendLockTracked(device, LockScreenNote(device)));
                 }
                 else
                 {
@@ -774,12 +774,25 @@ public static class CliRunner
 
     /// <summary>
     /// 发送一帧并回显结果。驻留提示里也要用到，所以不能只依赖命令注册表里的那个。
+    /// <para>
+    /// 锁屏帧必须走 <see cref="McuDevice.LockScreen"/>（见 <c>SendTracked</c>），
+    /// 否则 <c>ScreenLocked</c> 不会被置位，<c>exit</c> 拦截就形同虚设。
+    /// </para>
     /// </summary>
     private static string Send(McuDevice device, Func<McuFrame> build, string note = "")
     {
         if (!device.IsConnected) return "[ERR] 尚未连接设备";
         var frame = build();
         bool ok = device.Send(frame);
+        return $"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}";
+    }
+
+    /// <summary>发锁屏帧并回显；走 <see cref="McuDevice.LockScreen"/> 以维护锁屏状态。</summary>
+    private static string SendLockTracked(McuDevice device, string note = "")
+    {
+        if (!device.IsConnected) return "[ERR] 尚未连接设备";
+        var frame = McuOutbound.LockScreen();
+        bool ok = device.LockScreen();
         return $"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}";
     }
 
