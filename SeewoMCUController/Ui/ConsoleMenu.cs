@@ -798,9 +798,10 @@ public sealed class ConsoleMenu : IDisposable
         if (guardedLock && !await ConfirmLockScreenAsync(cancellationToken).ConfigureAwait(false))
             return;
 
+        string? result = null;
         try
         {
-            var result = await action.ExecuteAsync(_device, args, cancellationToken).ConfigureAwait(false);
+            result = await action.ExecuteAsync(_device, args, cancellationToken).ConfigureAwait(false);
             Report(result, cancellationToken);
         }
         catch (ArgumentException ex)
@@ -816,7 +817,8 @@ public sealed class ConsoleMenu : IDisposable
             Warn($"执行失败: {ex.Message}");
         }
 
-        if (guardedLock) await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
+        if (guardedLock && result?.StartsWith("[OK]", StringComparison.Ordinal) == true)
+            await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
     }
 
     // ------------------------------------------------------------------ 输出

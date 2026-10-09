@@ -166,10 +166,9 @@ public static class McuActionRegistry
     }
 
     /// <summary>发送锁屏或解锁帧，并同步维护本地屏幕状态。</summary>
-    private static Task<string> SendTracked(McuDevice device, Func<McuFrame> build, Func<bool> tracked, string note = "")
+    private static Task<string> SendTracked(McuDevice device, McuFrame frame, Func<bool> tracked, string note = "")
     {
         if (!device.IsConnected) return Task.FromResult(NotConnected);
-        var frame = build();
         bool ok = tracked();
         return Task.FromResult($"{(ok ? "[OK] 已发送" : "[ERR] 发送失败")}  {McuCommandNames.DescribeOut(frame)}  {frame}{note}");
     }
@@ -348,10 +347,10 @@ public static class McuActionRegistry
         // ---------------- 锁屏
         var lockMenu = categories[3];
         lockMenu.Actions.Add(Act("lock", "lock", "锁 Android 屏", "(0x36,0x10)",
-            (d, _, _) => SendTracked(d, () => McuOutbound.LockScreen(), d.LockScreen, LockScreenNote(d)),
+            (d, _, _) => SendTracked(d, McuOutbound.LockScreen(), d.LockScreen, LockScreenNote(d)),
             "", new[] { "lockscreen" }, false, false, mustHold: true));
         lockMenu.Actions.Add(Act("lock", "unlock", "解锁 Android 屏", "(0x36,0x12)",
-            (d, _, _) => SendTracked(d, () => McuOutbound.UnlockScreen(), d.UnlockScreen), "", new[] { "unlockscreen" }));
+            (d, _, _) => SendTracked(d, McuOutbound.UnlockScreen(), d.UnlockScreen), "", new[] { "unlockscreen" }));
         lockMenu.Actions.Add(Act("lock", "set-password", "设置锁屏口令（TUI 输入两遍确认；仅本机，不发 MCU 命令）", "",
             (d, a, _) =>
             {
@@ -376,9 +375,9 @@ public static class McuActionRegistry
             {
                 if (!d.IsConnected) return Task.FromResult(NotConnected);
                 bool ok = d.CheckPassword(TextArg(a, 0, string.Empty));
-                bool sent = d.Send(McuOutbound.PasswordResult(ok));
+                bool sent = d.ReplyPasswordResult(ok);
                 string extra = string.Empty;
-                if (ok && d.AutoUnlockOnPasswordAccepted && d.UnlockScreen())
+                if (ok && sent && d.AutoUnlockOnPasswordAccepted && d.UnlockScreen())
                     extra = "，并已发送 (0x36,0x12) 解锁";
                 string mode = d.HasLockPassword
                     ? $"（已启用口令，MD5 比对）"

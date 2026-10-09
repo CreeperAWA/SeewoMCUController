@@ -524,7 +524,10 @@ public static class CliRunner
                     line = await reader!.ReadLineAsync(cancellationToken).ConfigureAwait(false);
                     if (line is null)
                     {
-                        // EOF 只表示不能再输入命令，不能结束锁屏应答服务。
+                        if (!device.ScreenLocked)
+                            break;
+
+                        // 锁屏状态下 EOF 不能终止驻留，否则后续密码请求无人处理。
                         await unlocked.Task.ConfigureAwait(false);
                         break;
                     }

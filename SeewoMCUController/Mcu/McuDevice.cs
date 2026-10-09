@@ -398,7 +398,7 @@ public sealed class McuDevice : IDisposable
     }
 
     /// <summary>
-    /// 本进程是否已发出锁屏帧且尚未发出解锁帧。
+    /// 本进程根据最近一次成功发送的锁屏/解锁帧维护的本地状态。
     /// <para>
     /// 驻留期间据此拦住 <c>exit</c>：屏幕还锁着就退出，会让安卓板永远等不到口令应答。
     /// </para>
@@ -511,8 +511,8 @@ public sealed class McuDevice : IDisposable
         {
             // 官方走 MD5(原始负载字节) 小写十六进制比对；未设置口令时一律为 true。
             bool ok = CheckPassword(f.Payload);
-            Send(McuOutbound.PasswordResult(ok));
-            if (ok && AutoUnlockOnPasswordAccepted) UnlockScreen();
+            bool resultSent = ReplyPasswordResult(ok);
+            if (ok && resultSent && AutoUnlockOnPasswordAccepted) UnlockScreen();
         }
         catch (Exception ex)
         {
