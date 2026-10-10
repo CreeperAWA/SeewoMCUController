@@ -658,17 +658,19 @@ public sealed class ConsoleMenu : IDisposable
         }
 
         lines.Add("");
-        lines.Add($"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
+        lines.Add(device.HasLockPassword
+            ? "  输入 lock    继续：锁定 Android 屏，需在 Android 上输入口令解锁"
+            : $"  输入 lock    继续：锁定 Android 屏，{AutoUnlockDelaySeconds} 秒后自动解锁");
         lines.Add("  其它输入     放弃，不发送任何命令");
         lines.Add("  自动化场景请直接用命令行：SeewoMCUController.exe lock lock");
         return lines;
     }
 
     /// <summary>
-    /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续（锁屏并在 <see cref="AutoUnlockDelaySeconds"/> 秒后自动解锁）；
-    /// 其余输入视为放弃，不发送任何命令。
+    /// 锁 Android 屏的二次确认。输入 <c>lock</c> 继续，其余输入视为放弃。
     /// <para>
-    /// 尚未设置口令时会额外警示：锁上之后 Android 端输入任何口令都能解锁。
+    /// 未设置口令时锁屏后 <see cref="AutoUnlockDelaySeconds"/> 秒自动解锁；
+    /// 已设置口令则保持锁定，等用户在 Android 上输入口令。
     /// </para>
     /// 返回 true 表示允许继续。
     /// </summary>
@@ -735,7 +737,10 @@ public sealed class ConsoleMenu : IDisposable
 
     private string NotConnectedHint() => _device.IsConnected ? "写入失败" : "未连接设备";
 
-    /// <summary>交互式锁屏后等待 <see cref="AutoUnlockDelaySeconds"/> 秒，再发送一帧 <c>(0x36,0x12)</c> 解锁。</summary>
+    /// <summary>
+    /// 未设置口令时的兜底：锁屏后等待 <see cref="AutoUnlockDelaySeconds"/> 秒再发 <c>(0x36,0x12)</c> 解锁。
+    /// 已设置口令时不会调用本方法。
+    /// </summary>
     private async Task AutoUnlockLaterAsync(CancellationToken cancellationToken)
     {
         Terminal.ClearScreen();
@@ -817,7 +822,9 @@ public sealed class ConsoleMenu : IDisposable
             Warn($"执行失败: {ex.Message}");
         }
 
-        if (guardedLock && result?.StartsWith("[OK]", StringComparison.Ordinal) == true)
+        // 已设置口令时不自动解锁：口令的意义就是由用户在 Android 上决定何时解锁，
+        // 10 秒后无条件解锁会让口令形同虚设。
+        if (guardedLock && !_device.HasLockPassword && result?.StartsWith("[OK]", StringComparison.Ordinal) == true)
             await AutoUnlockLaterAsync(cancellationToken).ConfigureAwait(false);
     }
 

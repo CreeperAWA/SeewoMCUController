@@ -387,6 +387,7 @@ public static class CliRunner
         }
 
         using var device = CreateDevice(options);
+        AttachPasswordLog(device);
         if (options.Verbose)
             device.Inbound += evt => Console.WriteLine($"  ← {DateTime.Now:HH:mm:ss} {evt}");
 
@@ -764,8 +765,17 @@ public static class CliRunner
         var device = new McuDevice(options.DevicePath) { AutoReply = !options.NoAutoReply };
         if (options.FrameModeOption is { } mode) device.FrameMode = mode;
         if (options.QueryTimeoutMs is { } timeout) device.QueryTimeoutMs = timeout;
-        // CLI 没有日志窗，锁屏口令的调试日志直接打到标准输出。
-        device.PasswordLog += text => Console.WriteLine(text);
         return device;
     }
+
+    /// <summary>
+    /// 单次 CLI 没有日志窗，锁屏口令的调试日志直接打到标准输出。
+    /// <para>
+    /// 只能在这里挂：TUI 由 <see cref="ConsoleMenu"/> 把同样的事件送进日志窗，
+    /// 若在 <see cref="CreateDevice"/> 里无条件挂上，写日志时光标正停在提示符后，
+    /// 口令日志就会插在「选择&gt; 」这类提示后面。
+    /// </para>
+    /// </summary>
+    private static void AttachPasswordLog(McuDevice device) =>
+        device.PasswordLog += text => Console.WriteLine(text);
 }
