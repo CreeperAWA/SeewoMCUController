@@ -72,7 +72,7 @@ public sealed class LockPasswordStore
             {
                 return _hash is null
                     ? "未设置（任何口令都能解锁）"
-                    : $"已设置（{_plain!.Length} 位）";
+                    : "已设置";
             }
         }
     }
@@ -150,7 +150,7 @@ public sealed class LockPasswordStore
         var risks = new List<string>(2);
         int symbols = password.Count(c => !char.IsLetterOrDigit(c));
         if (password.Length > RecommendedLength)
-            risks.Add($"[!] 长度 {password.Length} 位，建议不超过 {RecommendedLength} 位：口令过长时 Android 输入法可能输入不全");
+            risks.Add($"[!] 口令较长，建议不超过 {RecommendedLength} 位：Android 输入法可能输入不全");
         if (symbols > 0)
             risks.Add($"[!] 含 {symbols} 个非字母数字字符：特殊字符在部分 Android 输入法上可能无法正确输入，锁屏后有解不开的风险");
         return risks;

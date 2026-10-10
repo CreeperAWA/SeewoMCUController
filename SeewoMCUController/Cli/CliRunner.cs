@@ -404,7 +404,7 @@ public static class CliRunner
                 Console.Error.WriteLine($"错误: {ex.Message}");
                 return 2;
             }
-            Console.WriteLine($"[口令] 已设置（{device.LockPassword.Length} 位）并进入驻留等待校验。");
+            Console.WriteLine("[口令] 已设置并进入驻留等待校验。");
             foreach (var risk in LockPasswordStore.DescribeRisks(pwd))
                 Console.WriteLine($"[口令] {risk}");
         }
@@ -486,7 +486,7 @@ public static class CliRunner
         Console.WriteLine();
         Console.WriteLine($"[驻留] 进程保持运行以应答口令，直到解锁为止（时限：{DescribeHold(opts.HoldSeconds)}）。");
         Console.WriteLine(device.HasLockPassword
-            ? $"[驻留] 口令已启用（{device.LockPassword.Length} 位）：在 Android 锁屏页输入口令即可解锁。"
+            ? "[驻留] 口令已启用：在 Android 锁屏页输入口令即可解锁。"
             : "[驻留] 尚未设置口令：Android 端输入任何口令都会被判定为正确并解锁。");
         if (!device.AutoReply)
             Console.WriteLine("[驻留] --no-auto-reply 已关闭对时 / SN 确认 / 文件回传 / U 盘弹窗的自动应答；"
@@ -756,7 +756,7 @@ public static class CliRunner
 
     /// <summary>锁屏命令的附加提示：口令是否已启用。</summary>
     private static string LockScreenNote(McuDevice device) => device.HasLockPassword
-        ? $"  [口令已启用 · {device.LockPassword.Length} 位]"
+        ? "  [口令已启用]"
         : "  [!] 尚未设置锁屏口令：Android 端输入任何口令都能解锁（先执行 lock set-password）";
 
     private static McuDevice CreateDevice(CliOptions options)

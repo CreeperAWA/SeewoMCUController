@@ -31,8 +31,8 @@ public static partial class SelfTest
 
         device.LockPassword.Set("Abc123");
         var set = string.Join("\n", ConsoleMenu.BuildLockConfirmLines(device));
-        Line("已设置口令 → 文案显示口令已启用与位数",
-            set.Contains("口令已启用", StringComparison.Ordinal) && set.Contains("6 位", StringComparison.Ordinal));
+        Line("已设置口令 → 文案显示口令已启用",
+            set.Contains("口令已启用", StringComparison.Ordinal) && !set.Contains("6 位", StringComparison.Ordinal));
         Line("已设置口令 → 不再警示任何口令都能解锁",
             !set.Contains("尚未设置锁屏口令", StringComparison.Ordinal));
         Line("已设置口令 → 不再承诺自动解锁",

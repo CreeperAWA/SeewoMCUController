@@ -642,7 +642,7 @@ public sealed class ConsoleMenu : IDisposable
 
         if (device.HasLockPassword)
         {
-            lines.Add($"  口令已启用（{device.LockPassword.Length} 位）：只有口令正确才会回 (0x36,0x31)=1 解锁。");
+            lines.Add("  口令已启用：只有口令正确才会通过校验并解锁。");
         }
         else
         {
@@ -700,10 +700,7 @@ public sealed class ConsoleMenu : IDisposable
         }
 
         var risks = LockPasswordStore.DescribeRisks(first);
-        var confirmLines = new List<string>
-        {
-            $"  上一次输入了 {first.Length} 位。",
-        };
+        var confirmLines = new List<string>();
         confirmLines.AddRange(risks);
         if (risks.Count == 0)
         {
@@ -1024,7 +1021,7 @@ public sealed class ConsoleMenu : IDisposable
     {
         var store = _device.LockPassword;
         yield return store.IsSet
-            ? new ConsoleRow($"口令  已设置 · {store.Length} 位", ConsoleColor.Green)
+            ? new ConsoleRow("口令  已设置", ConsoleColor.Green)
             : new ConsoleRow("口令  未设置 —— 任何口令都能解锁，请先执行 [3] set-password", ConsoleColor.Yellow);
         yield return new ConsoleRow("提示  " + LockPasswordStore.AdviceLine1, ConsoleColor.DarkGray);
         yield return new ConsoleRow("      " + LockPasswordStore.AdviceLine2, ConsoleColor.DarkGray);
