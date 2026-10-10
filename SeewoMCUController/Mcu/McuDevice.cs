@@ -44,7 +44,6 @@ public sealed class McuDevice : IDisposable
         _link = new McuLink(McuHunter.Usb) { AutoDetectFrameMode = true };
         _link.FrameReceived += OnFrameReceived;
         _link.LinkLost += reason => StatusChanged?.Invoke($"链路断开: {reason}");
-        LockPassword.DebugLog += text => PasswordLog?.Invoke(text);
     }
 
     public McuLink Link => _link;
@@ -111,12 +110,6 @@ public sealed class McuDevice : IDisposable
 
     /// <summary>连接失败通知，供 CLI 输出错误信息。</summary>
     public event Action<string>? ConnectFailed;
-
-    /// <summary>
-    /// 锁屏口令的调试日志。<b>当前处于调试阶段，会把用户设置的明文口令一并打印</b>，
-    /// 以便排查 TUI / CLI 的误操作；正式发布前应关闭 <see cref="LockPasswordStore.DebugLog"/>。
-    /// </summary>
-    public event Action<string>? PasswordLog;
 
     /// <summary>
     /// 本进程已发出 <c>(0x36,0x12)</c> 解锁帧。

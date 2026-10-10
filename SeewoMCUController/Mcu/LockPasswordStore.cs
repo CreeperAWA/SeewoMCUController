@@ -45,22 +45,10 @@ public sealed class LockPasswordStore
     private string? _plain;
     private string? _hash;
 
-    /// <summary>
-    /// 调试日志。<b>调试期会把用户设置的明文口令一并打印</b>，
-    /// 便于排查 TUI / CLI 里的误操作；正式发布前应关闭。
-    /// </summary>
-    public event Action<string>? DebugLog;
-
     /// <summary>是否已设置口令。</summary>
     public bool IsSet
     {
         get { lock (_gate) return _hash is not null; }
-    }
-
-    /// <summary>口令明文。仅用于调试日志与界面回显；比对一律走 <see cref="HashHex"/>。</summary>
-    public string? PlainText
-    {
-        get { lock (_gate) return _plain; }
     }
 
     /// <summary>口令的 MD5 小写十六进制，即官方本地缓存里的 <c>lockpwd</c>。</summary>
@@ -75,7 +63,7 @@ public sealed class LockPasswordStore
         get { lock (_gate) return _plain?.Length ?? 0; }
     }
 
-    /// <summary>口令状态的一行描述（调试用，含明文与 MD5）。</summary>
+    /// <summary>口令状态的一行描述，不包含口令内容。</summary>
     public string Status
     {
         get
@@ -84,7 +72,7 @@ public sealed class LockPasswordStore
             {
                 return _hash is null
                     ? "未设置（任何口令都能解锁）"
-                    : $"已设置（明文 = {_plain}，{_plain!.Length} 位，MD5 = {_hash}）";
+                    : $"已设置（{_plain!.Length} 位）";
             }
         }
     }
@@ -122,22 +110,16 @@ public sealed class LockPasswordStore
             _plain = password;
             _hash = hash;
         }
-        Log($"[调试] 已设置锁屏口令：明文 = {password}（{password.Length} 位），MD5 = {hash}");
     }
 
     /// <summary>清除口令，回到「任何口令都能解锁」。</summary>
     public void Clear()
     {
-        string? old;
         lock (_gate)
         {
-            old = _plain;
             _plain = null;
             _hash = null;
         }
-        Log(old is null
-            ? "[调试] 锁屏口令本就未设置，无需清除"
-            : $"[调试] 已清除锁屏口令：原明文 = {old}");
     }
 
     /// <summary>校验输入是否合法。空、超长、含控制字符都不合法。</summary>
@@ -182,21 +164,13 @@ public sealed class LockPasswordStore
     public bool Verify(ReadOnlySpan<byte> rawPayload)
     {
         string hash = Md5Hex(rawPayload);
-        string shown = System.Text.Encoding.UTF8.GetString(rawPayload);
-
         string? expected;
-        string? plain;
         bool ok;
         lock (_gate)
         {
             expected = _hash;
-            plain = _plain;
             ok = expected is null || FixedTimeEquals(expected, hash);
         }
-
-        Log(expected is null
-            ? $"[调试] 口令校验：未设置口令，输入 \"{shown}\" 直接判定为正确"
-            : $"[调试] 口令校验：输入 \"{shown}\" → MD5 {hash}；口令 明文 = \"{plain}\"，MD5 = {expected}；结果 {(ok ? "正确" : "错误")}");
         return ok;
     }
 
@@ -212,5 +186,4 @@ public sealed class LockPasswordStore
         return CryptographicOperations.FixedTimeEquals(x, y);
     }
 
-    private void Log(string text) => DebugLog?.Invoke(text);
 }

@@ -56,7 +56,6 @@ public sealed class ConsoleMenu : IDisposable
         _device = device;
         _device.Inbound += OnInbound;
         _device.StatusChanged += OnStatus;
-        _device.PasswordLog += OnPasswordLog;
         _device.ScreenLockChanged += OnScreenLockChanged;
         _device.Link.LogAppended += OnLogAppended;
         _device.Link.LogCleared += OnLogCleared;
@@ -97,12 +96,6 @@ public sealed class ConsoleMenu : IDisposable
     private void OnInbound(McuInboundEvent evt) => Publish(ConsoleEventLine.FromInbound(evt));
 
     private void OnStatus(string text) => Note("链路", "状态变化", text, ConsoleColor.DarkGray);
-
-    /// <summary>
-    /// 锁屏口令的调试日志。调试期会带着用户设置的明文口令一起打到日志窗，
-    /// 方便对着日志确认 TUI 里到底设成了什么。
-    /// </summary>
-    private void OnPasswordLog(string text) => Note("锁屏口令", "调试", text, ConsoleColor.Magenta);
 
     /// <summary>
     /// 锁屏状态变化。锁屏与解锁都记一条，便于在日志里对上「什么时候锁的、什么时候解的」。
@@ -687,13 +680,7 @@ public sealed class ConsoleMenu : IDisposable
         return false;
     }
 
-    /// <summary>
-    /// 设置锁屏口令的两次输入确认。返回要设置的明文口令；返回 <c>null</c> 表示放弃，
-    /// 此时原口令保持不变。
-    /// <para>
-    /// 口令只用普通文本输入，不做掩码：调试期需要在日志里留下明文才能对得上账。
-    /// </para>
-    /// </summary>
+    /// <summary>设置锁屏口令的两次输入确认。返回 <c>null</c> 表示放弃。</summary>
     private async Task<string[]?> ConfirmNewPasswordAsync(CancellationToken cancellationToken)
     {
         var first = await PromptModalAsync("设置锁屏口令 · 第 1 次输入", new[]
@@ -1037,7 +1024,7 @@ public sealed class ConsoleMenu : IDisposable
     {
         var store = _device.LockPassword;
         yield return store.IsSet
-            ? new ConsoleRow($"口令  已设置 · {store.Length} 位 · MD5 = {store.HashHex}", ConsoleColor.Green)
+            ? new ConsoleRow($"口令  已设置 · {store.Length} 位", ConsoleColor.Green)
             : new ConsoleRow("口令  未设置 —— 任何口令都能解锁，请先执行 [3] set-password", ConsoleColor.Yellow);
         yield return new ConsoleRow("提示  " + LockPasswordStore.AdviceLine1, ConsoleColor.DarkGray);
         yield return new ConsoleRow("      " + LockPasswordStore.AdviceLine2, ConsoleColor.DarkGray);
@@ -1048,7 +1035,6 @@ public sealed class ConsoleMenu : IDisposable
     {
         _device.Inbound -= OnInbound;
         _device.StatusChanged -= OnStatus;
-        _device.PasswordLog -= OnPasswordLog;
         _device.ScreenLockChanged -= OnScreenLockChanged;
         _device.Link.LogAppended -= OnLogAppended;
         _device.Link.LogCleared -= OnLogCleared;

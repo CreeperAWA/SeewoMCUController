@@ -354,8 +354,9 @@ public static class McuActionRegistry
         lockMenu.Actions.Add(Act("lock", "set-password", "设置锁屏口令（TUI 输入两遍确认；仅本机，不发 MCU 命令）", "",
             (d, a, _) =>
             {
-                d.LockPassword.Set(TextArg(a, 0, string.Empty));
-                var risks = LockPasswordStore.DescribeRisks(d.LockPassword.PlainText!);
+                string password = TextArg(a, 0, string.Empty);
+                var risks = LockPasswordStore.DescribeRisks(password);
+                d.LockPassword.Set(password);
                 string warn = risks.Count == 0 ? string.Empty : Environment.NewLine + string.Join(Environment.NewLine, risks);
                 return Task.FromResult($"[OK] 锁屏口令已设置（{d.LockPassword.Length} 位）；"
                     + "校验方式与官方一致：MD5(安卓上行的口令负载) 小写十六进制比对；口令只保存在本进程内"
@@ -367,7 +368,7 @@ public static class McuActionRegistry
                 d.LockPassword.Clear();
                 return Task.FromResult("[OK] 锁屏口令已清除，之后安卓端输入任何口令都能解锁");
             }, "", new[] { "clearpwd" }, true));
-        lockMenu.Actions.Add(Act("lock", "pwd-status", "查看锁屏口令状态（调试：含明文口令与 MD5）", "",
+        lockMenu.Actions.Add(Act("lock", "pwd-status", "查看锁屏口令状态", "",
             (d, _, _) => Task.FromResult($"[OK] {LockPasswordStore.AdviceLine1}{Environment.NewLine}    {LockPasswordStore.AdviceLine2}{Environment.NewLine}  口令：{d.LockPassword.Status}"),
             "", new[] { "pwdinfo" }, true));
         lockMenu.Actions.Add(Act("lock", "pwd", "回 (0x36,0x31)=口令校验结果并按配置解锁", "(0x36,0x31)",

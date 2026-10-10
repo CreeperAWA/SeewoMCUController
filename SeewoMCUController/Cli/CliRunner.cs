@@ -387,7 +387,6 @@ public static class CliRunner
         }
 
         using var device = CreateDevice(options);
-        AttachPasswordLog(device);
         AttachConnectFailedLog(device);
         if (options.Verbose)
             device.Inbound += evt => Console.WriteLine($"  ← {DateTime.Now:HH:mm:ss} {evt}");
@@ -767,10 +766,6 @@ public static class CliRunner
         if (options.QueryTimeoutMs is { } timeout) device.QueryTimeoutMs = timeout;
         return device;
     }
-
-    /// <summary>为单次 CLI 输出锁屏口令调试日志。</summary>
-    private static void AttachPasswordLog(McuDevice device) =>
-        device.PasswordLog += text => Console.WriteLine(text);
 
     /// <summary>为单次 CLI 将连接失败写入 stderr。</summary>
     private static void AttachConnectFailedLog(McuDevice device) =>
