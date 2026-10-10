@@ -1044,7 +1044,16 @@ public sealed class ConsoleMenu : IDisposable
     }
 
     /// <summary>退出时关掉独立日志窗口（写端关闭 → 子进程读到 EOF 自行退出）。</summary>
-    public void Dispose() => _logWindow.Dispose();
+    public void Dispose()
+    {
+        _device.Inbound -= OnInbound;
+        _device.StatusChanged -= OnStatus;
+        _device.PasswordLog -= OnPasswordLog;
+        _device.ScreenLockChanged -= OnScreenLockChanged;
+        _device.Link.LogAppended -= OnLogAppended;
+        _device.Link.LogCleared -= OnLogCleared;
+        _logWindow.Dispose();
+    }
 
     private string StatusSummary()
     {

@@ -109,6 +109,9 @@ public sealed class McuDevice : IDisposable
 
     public event Action<McuDeviceState>? StateChanged;
 
+    /// <summary>连接失败通知，供 CLI 输出错误信息。</summary>
+    public event Action<string>? ConnectFailed;
+
     /// <summary>
     /// 锁屏口令的调试日志。<b>当前处于调试阶段，会把用户设置的明文口令一并打印</b>，
     /// 以便排查 TUI / CLI 的误操作；正式发布前应关闭 <see cref="LockPasswordStore.DebugLog"/>。
@@ -182,10 +185,11 @@ public sealed class McuDevice : IDisposable
         return int.TryParse(input, out int n) && n >= 1 && n <= devices.Count ? devices[n - 1] : devices[0];
     }
 
+    /// <summary>报告连接失败。</summary>
     private bool Fail(string message)
     {
         StatusChanged?.Invoke(message);
-        Console.Error.WriteLine($"错误: {message}");
+        ConnectFailed?.Invoke(message);
         return false;
     }
 

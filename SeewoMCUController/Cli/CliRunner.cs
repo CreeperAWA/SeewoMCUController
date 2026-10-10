@@ -388,6 +388,7 @@ public static class CliRunner
 
         using var device = CreateDevice(options);
         AttachPasswordLog(device);
+        AttachConnectFailedLog(device);
         if (options.Verbose)
             device.Inbound += evt => Console.WriteLine($"  ← {DateTime.Now:HH:mm:ss} {evt}");
 
@@ -460,8 +461,7 @@ public static class CliRunner
         }
     }
 
-    /// <summary>驻留期间持续处理上行事件并接受交互命令。</summary>
-    /// <summary>是否为驻留模式下的退出指令（<c>exit</c> / <c>quit</c> / <c>q</c>）。</summary>
+    /// <summary>是否为驻留模式下的退出指令（<c>exit</c>、<c>quit</c> 或 <c>q</c>）。</summary>
     internal static bool IsExitCommand(string line) =>
         line.ToLowerInvariant() is "exit" or "quit" or "q";
 
@@ -768,14 +768,11 @@ public static class CliRunner
         return device;
     }
 
-    /// <summary>
-    /// 单次 CLI 没有日志窗，锁屏口令的调试日志直接打到标准输出。
-    /// <para>
-    /// 只能在这里挂：TUI 由 <see cref="ConsoleMenu"/> 把同样的事件送进日志窗，
-    /// 若在 <see cref="CreateDevice"/> 里无条件挂上，写日志时光标正停在提示符后，
-    /// 口令日志就会插在「选择&gt; 」这类提示后面。
-    /// </para>
-    /// </summary>
+    /// <summary>为单次 CLI 输出锁屏口令调试日志。</summary>
     private static void AttachPasswordLog(McuDevice device) =>
         device.PasswordLog += text => Console.WriteLine(text);
+
+    /// <summary>为单次 CLI 将连接失败写入 stderr。</summary>
+    private static void AttachConnectFailedLog(McuDevice device) =>
+        device.ConnectFailed += message => Console.Error.WriteLine($"错误: {message}");
 }
