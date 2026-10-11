@@ -129,7 +129,7 @@ public sealed class ConsoleMenu : IDisposable
     }
 
     /// <summary>当前有效日志条数（合并后）。</summary>
-    private int LogCount => LogWindowAlive ? _aggregator.Count : _fallbackPane.Count;
+    private long LogCount => _aggregator.TotalCount;
 
     /// <summary>日志窗是否已被用户关闭（关闭即退出整个程序）。</summary>
     private bool LogWindowClosed => _logWindowStarted && !_logWindow.IsAlive;
@@ -628,7 +628,7 @@ public sealed class ConsoleMenu : IDisposable
     {
         var lines = new List<string>
         {
-            "  此功能只应当搭配自动化使用，手动触发无异于吞下赛博灯泡！",
+            "  此功能存在风险，请确保出现问题后你有能力解决",
             "",
         };
 
@@ -887,7 +887,13 @@ public sealed class ConsoleMenu : IDisposable
         {
             new($"==== {title} ====", ConsoleColor.Yellow),
         };
-        foreach (var line in lines) rows.Add(new(line, line.Length == 0 ? ConsoleColor.Gray : ConsoleColor.Yellow));
+        foreach (var line in lines)
+        {
+            ConsoleColor color = line == "  此功能存在风险，请确保出现问题后你有能力解决"
+                ? ConsoleColor.Red
+                : line.Length == 0 ? ConsoleColor.Gray : ConsoleColor.Yellow;
+            rows.Add(new(line, color));
+        }
 
         Terminal.ClearScreen();
         Terminal.AlignWindowToOrigin();

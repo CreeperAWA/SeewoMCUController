@@ -35,9 +35,13 @@ internal sealed class LogAggregator
     }
 
     private long _version;
+    private long _totalCount;
 
     /// <summary>内容版本号，每次追加 / 合并后自增，供视图判断是否需要重画。</summary>
     public long Version => Interlocked.Read(ref _version);
+
+    /// <summary>自上次清空以来追加的原始事件总数，不受合并影响。</summary>
+    public long TotalCount => Interlocked.Read(ref _totalCount);
 
     /// <summary>
     /// 追加一条日志，返回合并后的结果：<c>result.Line</c> 是最终显示内容，
@@ -47,6 +51,7 @@ internal sealed class LogAggregator
     {
         lock (_gate)
         {
+            Interlocked.Increment(ref _totalCount);
             string key = KeyOf(line);
 
             if (_index.TryGetValue(key, out var existing))
@@ -95,6 +100,7 @@ internal sealed class LogAggregator
             _index.Clear();
             _counts.Clear();
         }
+        Interlocked.Exchange(ref _totalCount, 0);
         Interlocked.Increment(ref _version);
     }
 
