@@ -103,8 +103,13 @@ public sealed class McuLink : IDisposable
     {
         _running = false;
         FailPending("链路已关闭");
-        if (_reader is { IsAlive: true } reader && !ReferenceEquals(Thread.CurrentThread, reader))
-            reader.Join(500);
+        if (_reader is not { IsAlive: true } reader || ReferenceEquals(Thread.CurrentThread, reader)) return;
+
+        if (reader.Join(500)) return;
+
+        // 关闭句柄以解除阻塞式 ReadFile。
+        _usb.Disconnect();
+        reader.Join(500);
     }
 
     private void ReadLoop()
