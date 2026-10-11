@@ -16,6 +16,7 @@ namespace SeewoMCUController.Ui;
 internal sealed class LogWindowProcess : IDisposable
 {
     private readonly object _gate = new();
+    private readonly object _writeGate = new();
     private IntPtr _writePipe = IntPtr.Zero;
     private IntPtr _process = IntPtr.Zero;
     private int _pid;
@@ -134,85 +135,96 @@ internal sealed class LogWindowProcess : IDisposable
     /// <summary>写一行日志；写失败（窗口被关掉）返回 false。</summary>
     public bool Send(string payload)
     {
+        StreamWriter? writer;
         lock (_gate)
         {
             if (_disposed || _writer is null) return false;
-            try
-            {
-                _writer.WriteLine(payload);
-                return true;
-            }
-            catch (IOException)
-            {
-                // 日志窗已被用户关闭
-                return false;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }
+            writer = _writer;
+        }
+
+        try
+        {
+            lock (_writeGate) writer.WriteLine(payload);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
         }
     }
 
     /// <summary>向日志窗发一条控制指令（如 <see cref="LogWire.Quit"/>）。</summary>
     public bool Command(string command)
     {
+        StreamWriter? writer;
         lock (_gate)
         {
             if (_disposed || _writer is null) return false;
-            try
-            {
-                _writer.WriteLine(LogWire.CommandPrefix + command);
-                return true;
-            }
-            catch (IOException)
-            {
-                return false;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }
+            writer = _writer;
+        }
+
+        try
+        {
+            lock (_writeGate) writer.WriteLine(LogWire.CommandPrefix + command);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
         }
     }
 
     public void Dispose()
     {
+        StreamWriter? writer;
+        IntPtr process;
+        int pid;
+
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
+            writer = _writer;
+            _writer = null;
+            process = _process;
+            _process = IntPtr.Zero;
+            pid = _pid;
+            _writePipe = IntPtr.Zero;
+        }
+
+        lock (_writeGate)
+        {
             try
             {
-                _writer?.Dispose();
+                writer?.Dispose();
             }
             catch (IOException)
             {
             }
-            _writer = null;
+        }
 
-            if (_writePipe != IntPtr.Zero)
+        if (process != IntPtr.Zero)
+        {
+            // 关闭 stdin 已让子进程读到 EOF；这里只做兜底。
+            if (LogWindowNative.WaitForSingleObject(process, 300) == LogWindowNative.WAIT_TIMEOUT)
             {
-                LogWindowNative.CloseHandle(_writePipe);
-                _writePipe = IntPtr.Zero;
-            }
-            if (_process != IntPtr.Zero)
-            {
-                // 关闭 stdin 已让子进程读到 EOF 自行退出；这里只做兜底。
-                if (LogWindowNative.WaitForSingleObject(_process, 300) == LogWindowNative.WAIT_TIMEOUT)
+                try
                 {
-                    try
-                    {
-                        Process.GetProcessById(_pid).Kill();
-                    }
-                    catch (Exception)
-                    {
-                        // 子进程可能已经退出，忽略
-                    }
+                    Process.GetProcessById(pid).Kill();
                 }
-                LogWindowNative.CloseHandle(_process);
-                _process = IntPtr.Zero;
+                catch (Exception)
+                {
+                }
             }
+            LogWindowNative.CloseHandle(process);
         }
     }
 }

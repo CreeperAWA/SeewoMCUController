@@ -42,9 +42,6 @@ public sealed class ConsoleMenu : IDisposable
     /// <summary>是否曾经成功拉起过独立日志窗口。</summary>
     private bool _logWindowStarted;
 
-    /// <summary>日志窗消失时置位，用于提示用户「关掉日志窗会退出整个程序」。</summary>
-    private bool _logWindowGoneNoticed;
-
     /// <summary>二级菜单的动作列表滚动位置。</summary>
     private int _scroll;
 
@@ -66,7 +63,6 @@ public sealed class ConsoleMenu : IDisposable
     {
         if (!_logWindow.TryOpen()) return false;
         _logWindowStarted = true;
-        _logWindowGoneNoticed = false;
         // 连接 / 握手阶段的事件已经产生过了，补发给刚开的窗口。
         foreach (var entry in _device.Link.SnapshotLog()) Replay(entry);
         return true;
@@ -292,11 +288,7 @@ public sealed class ConsoleMenu : IDisposable
                 await Task.Delay(200, linked.Token).ConfigureAwait(false);
                 if (_logWindow.IsAlive) continue;
 
-                if (!_logWindowGoneNoticed)
-                {
-                    _logWindowGoneNoticed = true;
-                    Note("日志窗", "已关闭", "日志窗口已关闭，正在退出整个程序", ConsoleColor.Yellow);
-                }
+                // 先取消主循环，避免向已关闭或正在退出的日志窗写入消息。
                 linked.Cancel();
                 return;
             }
