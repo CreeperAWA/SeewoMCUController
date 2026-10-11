@@ -1,0 +1,111 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (leave empty to use 0.0.0-dev.<run_number>)'
+        required: false
+        default: ''
+        type: string
+  release:
+    types: [published]
+
+# 发布 Release 附件需要写权限
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.event_name == 'release' && github.event.release.tag_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build-amd64:
+    # 仅支持 64 位 AMD64（win-x64），发布 Release 时或手动触发时都构建
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+          cache-dependency-path: 'SeewoMCUController/SeewoMCUController.csproj'
+
+      - name: Set version environment variable
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $raw = if ($env:EVENT_NAME -eq 'release') { $env:RELEASE_TAG } else { $env:INPUT_VERSION }
+
+          # 去掉前导 v，并去掉空白
+          $clean = ''
+          if ($raw) { $clean = ($raw -replace '^[vV]', '').Trim() }
+          if (-not $clean) { $clean = "0.0.0-dev.$env:RUN_NUMBER" }
+
+          if ($clean -notmatch '^\d+(\.\d+){0,2}(-[0-9A-Za-z\.\-]+)?(\+[0-9A-Za-z\.\-]+)?$') {
+            throw "Invalid version '$raw'. Expected 1.2.3 / v1.2.3 / v1.2.3-beta.1"
+          }
+
+          # 程序集/文件版本必须是四段纯数字：1.2.3-beta.1 -> 1.2.3.0
+          $numbers = ($clean -split '-')[0] -split '\.'
+          $parts = @('0', '0', '0')
+          for ($i = 0; $i -lt 3 -and $i -lt $numbers.Count; $i++) {
+            if ($numbers[$i] -match '^\d+$') { $parts[$i] = $numbers[$i] }
+          }
+          $fileVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
+
+          "VERSION=$clean"           | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "FILE_VERSION=$fileVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Version: $clean (file version $fileVersion)"
+
+      - name: Build executable with Native AOT
+        run: |
+          dotnet publish "SeewoMCUController/SeewoMCUController.csproj" `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            --nologo `
+            -p:PublishAot=true `
+            -p:Version="$env:VERSION" `
+            -p:AssemblyVersion="$env:FILE_VERSION" `
+            -p:FileVersion="$env:FILE_VERSION" `
+            -p:InformationalVersion="$env:VERSION" `
+            -o "publish"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke test (selftest)
+        run: |
+          & ".\publish\SeewoMCUController.exe" --selftest
+          if ($LASTEXITCODE -ne 0) { throw "Self test failed with exit code $LASTEXITCODE" }
+
+      - name: Package
+        run: |
+          $name = "SeewoMCUController-$env:VERSION-win-x64.exe"
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+          Copy-Item ".\publish\SeewoMCUController.exe" ".\dist\$name" -Force
+          Get-ChildItem ".\dist" | Format-Table Name, Length -AutoSize
+
+      - name: Upload artifact (workflow dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeewoMCUController-win-x64
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          fail_on_unmatched_files: true

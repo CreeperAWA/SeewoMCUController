@@ -5,6 +5,11 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyTitle>SeewoMCUController</AssemblyTitle>
+    <Product>SeewoMCUController</Product>
+    <Company>CreeperAWA</Company>
+    <CopyrightYear Condition="'$(CopyrightYear)' == ''">$([System.DateTime]::Now.Year)</CopyrightYear>
+    <Copyright>© $(CopyrightYear) CreeperAWA.</Copyright>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>false</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
