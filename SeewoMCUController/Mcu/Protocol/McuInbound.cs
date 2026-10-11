@@ -86,7 +86,7 @@ public static class McuInbound
                 Name = "请求 PC 当前时间",
                 Detail = string.Empty,
                 Kind = InboundKind.Request,
-                AutoReply = "自动回发 (0x15,0x00) + 7 字节时间",
+                AutoReply = "发送 (0x15,0x00) 及 7 字节时间数据",
             },
             (byte)MainIn.CurrentTvStatus => new McuInboundEvent
             {
@@ -110,9 +110,9 @@ public static class McuInbound
                 Main = main,
                 Name = "U 盘锁动作请求",
                 // sub==0 与 sub==1 是两类不同的动作，语义未命名
-                Detail = frame.Sub == 0 ? "动作 A（内部 timer 6）" : frame.Sub == 1 ? "动作 B（内部 timer 5）" : $"sub=0x{frame.Sub:X2}",
+                Detail = frame.Sub == 0 ? "动作 A（内部定时器 6）" : frame.Sub == 1 ? "动作 B（内部定时器 5）" : $"sub=0x{frame.Sub:X2}",
                 Kind = InboundKind.Request,
-                AutoReply = "PC 侧仅投本地定时器，协议无回包",
+                AutoReply = "仅启动本地定时器，协议无响应",
             },
             (byte)MainIn.OpenMeetingOrIe => Simple(frame, main, "打开会议或浏览器"),
             (byte)MainIn.OpenEasyMeeting => Simple(frame, main, "打开 EasiMeeting"),
@@ -124,9 +124,9 @@ public static class McuInbound
                 Frame = frame,
                 Main = main,
                 Name = "把当前 PPT 切到与屏幕同分辨率",
-                Detail = "payload 为空，纯触发通知",
+                Detail = "负载为空，仅触发通知",
                 Kind = InboundKind.Request,
-                AutoReply = "PC 侧调整幻灯片页面比例（3 秒节流）",
+                AutoReply = "调整幻灯片页面比例",
             },
             (byte)MainIn.PcDoRevocation => new McuInboundEvent
             {
@@ -135,7 +135,7 @@ public static class McuInbound
                 Name = "撤销／注销会话",
                 Detail = $"参数 {frame.PayloadBytes(0, 4).ToArray().Select(b => b.ToString("X2")).Aggregate((a, b) => a + " " + b)}",
                 Kind = InboundKind.Request,
-                AutoReply = "PC 侧撤销会话（语义未命名）",
+                AutoReply = "撤销会话（参数含义未定义）",
             },
             (byte)MainIn.AppStateNotification => new McuInboundEvent
             {
@@ -291,19 +291,19 @@ public static class McuInbound
                     Name = action switch { 0 => "U 盘拔出", 1 => "U 盘插入", _ => "U 盘动作" },
                     Detail = string.IsNullOrEmpty(drive) ? $"action={action}" : drive,
                     Kind = action == 1 ? InboundKind.Request : InboundKind.State,
-                    AutoReply = action == 1 ? "回发 (0x36,0x16) 弹窗状态" : null,
+                    AutoReply = action == 1 ? "发送 (0x36,0x16) 弹窗状态" : null,
                 };
             }
             case Main36.ScreenPassword:
                 return new McuInboundEvent
-            {
-                Frame = frame,
-                Main = MainIn.Group36,
-                Name = "远程协助锁屏口令",
-                Detail = frame.PayloadString(),
-                Kind = InboundKind.Request,
-                AutoReply = "校验后回 (0x36,0x31)；正确再发 (0x36,0x12)",
-            };
+                {
+                    Frame = frame,
+                    Main = MainIn.Group36,
+                    Name = "远程协助锁屏口令",
+                    Detail = frame.PayloadString(),
+                    Kind = InboundKind.Request,
+                    AutoReply = "发送 (0x36,0x31)，验证通过后发送 (0x36,0x12)",
+                };
             case Main36.StatusAck:
                 return TaggedResponse(frame, "Android 状态/凭据应答", "状态数据");
             case Main36.SwitchStateAck:
@@ -320,7 +320,7 @@ public static class McuInbound
                     Name = type switch { 0 => "文件数据-重置缓存", 0xFF => "文件数据-请求回传", _ => "文件数据" },
                     Detail = type == 0xFF ? string.Empty : frame.ToHex(McuFrame.PayloadOffset + Math.Min(frame.PayloadLength, McuFrame.Size)),
                     Kind = type == 0xFF ? InboundKind.Request : InboundKind.State,
-                    AutoReply = type == 0xFF ? "回发 (0x36,0x33)" : null,
+                    AutoReply = type == 0xFF ? "发送 (0x36,0x33)" : null,
                 };
             }
             case Main36.SeewoUser:
@@ -328,10 +328,10 @@ public static class McuInbound
                 {
                     Frame = frame,
                     Main = MainIn.Group36,
-                    Name = "希沃账号／口令",
+                    Name = "希沃账号及口令",
                     Detail = frame.PayloadString(),
                     Kind = InboundKind.Request,
-                    AutoReply = "校验通过则 UnlockScreen()",
+                    AutoReply = "验证通过后调用 UnlockScreen()",
                 };
             case Main36.QrCodeRequest:
                 return new McuInboundEvent
@@ -400,7 +400,7 @@ public static class McuInbound
                     Name = "安卓板上报 SN",
                     Detail = frame.PayloadString(),
                     Kind = InboundKind.Request,
-                    AutoReply = "回发 (0x36,0x39)",
+                    AutoReply = "发送 (0x36,0x39)",
                 };
             default:
                 return new McuInboundEvent
