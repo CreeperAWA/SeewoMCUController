@@ -14,8 +14,6 @@ public static class McuHunter
     /// <summary>当前选中的 MCU。</summary>
     public static UsbId? DetectedMcu { get; set; }
 
-    public static List<UsbId> DefineDeviceMcu => McuKnownDevices.Defaults.ToList();
-
     /// <summary>枚举所有疑似 MCU 的 HID 设备，按预定义表排序。</summary>
     public static List<UsbId> FindAll()
     {
@@ -36,25 +34,6 @@ public static class McuHunter
         list.Sort(new UsbIdSortComparer(McuKnownDevices.Defaults.ToList()));
         DetectedMcu ??= list.FirstOrDefault();
         return list;
-    }
-
-    public static bool FindMcu() => FindAll().Count > 0;
-
-    public static UsbId? GetOrFindMcu() => DetectedMcu ??= (FindAll().FirstOrDefault());
-
-    /// <summary>写入一帧（线上 64 字节，含传输头）。</summary>
-    public static bool Write(byte[] frame)
-    {
-        if (DetectedMcu is null && !ConnectFirst()) return false;
-        try
-        {
-            if (Usb.Write(frame)) return true;
-            return ConnectFirst() && Usb.Write(frame);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
     }
 
     /// <summary>依次尝试连接候选设备，返回是否至少成功连接一个。</summary>

@@ -32,8 +32,6 @@ public sealed class McuDevice : IDisposable
 {
     private readonly McuLink _link;
     private readonly McuDeviceState _state = new();
-    private readonly List<string> _notices = new();
-    private readonly object _noticeGate = new();
     private UsbId? _usbId;
     private bool _autoReply = true;
     private bool _probed;
@@ -627,23 +625,6 @@ public sealed class McuDevice : IDisposable
     public IReadOnlyList<McuLogEntry> Log => _link.SnapshotLog();
 
     public void ClearLog() => _link.ClearLog();
-
-    public IReadOnlyList<string> Notices
-    {
-        get
-        {
-            lock (_noticeGate) return _notices.ToArray();
-        }
-    }
-
-    public void AddNotice(string text)
-    {
-        lock (_noticeGate)
-        {
-            _notices.Add($"{DateTime.Now:HH:mm:ss} {text}");
-            if (_notices.Count > 200) _notices.RemoveAt(0);
-        }
-    }
 
     public void Dispose()
     {

@@ -391,9 +391,6 @@ public static class McuCommandNames
         if (frame.Main == (byte)MainOut.SwitchChannel || frame.Main == (byte)MainOut.DefaultChannelMode
             || frame.Main == (byte)MainOut.ReportChannel)
             return $"通道命令 ch={DescribeChannel(frame.Sub)}";
-        if (frame.Main == (byte)MainOut.Volume || frame.Main == (byte)MainOut.Group36
-            || frame.Main == (byte)MainOut.AndroidGlobal || frame.Main == (byte)MainOut.AndroidInfo)
-            return $"0x{frame.Main:X2}/0x{frame.Sub:X2}";
         return $"0x{frame.Main:X2}/0x{frame.Sub:X2}";
     }
 

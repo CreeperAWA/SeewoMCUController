@@ -158,15 +158,10 @@ public sealed class LockPasswordStore
     /// </summary>
     public bool Verify(ReadOnlySpan<byte> rawPayload)
     {
-        string hash = Md5Hex(rawPayload);
-        string? expected;
-        bool ok;
         lock (_gate)
         {
-            expected = _hash;
-            ok = expected is null || FixedTimeEquals(expected, hash);
+            return _hash is null || FixedTimeEquals(_hash, Md5Hex(rawPayload));
         }
-        return ok;
     }
 
     /// <summary>校验明文口令（等价于对 UTF-8 字节做同样的比对）。</summary>

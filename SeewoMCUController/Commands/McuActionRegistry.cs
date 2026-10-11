@@ -191,9 +191,6 @@ public static class McuActionRegistry
         ? "  [口令已启用]"
         : "  [!] 尚未设置锁屏口令：Android 端输入任意口令均可解锁";
 
-    /// <summary>动作是否必须驻留：命令行里执行完不能直接退出，否则安卓板的上报无人应答。</summary>
-    public static bool RequiresHold(McuAction action) => action.MustHold;
-
     private static async Task<string> Query(string label, Task<string?> query)
     {
         var value = await query.ConfigureAwait(false);

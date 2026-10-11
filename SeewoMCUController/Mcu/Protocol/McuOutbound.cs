@@ -117,7 +117,8 @@ public static class McuOutbound
         {
             frame.Buffer[3] = 0x01;
             byte value = (byte)(param & 0xFF);
-            frame.Buffer[5] = decrementParam ? (byte)(value - 1) : value;
+            // param 为 1 基序号，减一时须避免下溢。
+            frame.Buffer[5] = decrementParam ? (byte)(value == 0 ? 0 : value - 1) : value;
         }
         return frame;
     }
