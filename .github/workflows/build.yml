@@ -90,9 +90,16 @@ jobs:
 
       - name: Package
         run: |
-          $name = "SeewoMCUController-$env:VERSION-win-x64.exe"
+          $baseName = "SeewoMCUController-$env:VERSION-win-x64"
+          $exe = ".\publish\SeewoMCUController.exe"
+          $pdb = ".\publish\SeewoMCUController.pdb"
+
+          if (-not (Test-Path $exe)) { throw "Native AOT executable was not found: $exe" }
+          if (-not (Test-Path $pdb)) { throw "Native AOT symbols were not found: $pdb" }
+
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
-          Copy-Item ".\publish\SeewoMCUController.exe" ".\dist\$name" -Force
+          Copy-Item $exe ".\dist\$baseName.exe" -Force
+          Copy-Item $pdb ".\dist\$baseName.pdb" -Force
           Get-ChildItem ".\dist" | Format-Table Name, Length -AutoSize
 
       - name: Upload artifact (workflow dispatch)
@@ -100,12 +107,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SeewoMCUController-win-x64
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.pdb
           if-no-files-found: error
 
       - name: Upload to GitHub Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.pdb
           fail_on_unmatched_files: true
