@@ -119,7 +119,7 @@ public sealed class LockPasswordStore
         }
     }
 
-    /// <summary>校验输入是否合法。空、超长、含控制字符都不合法。</summary>
+    /// <summary>校验输入是否合法。空、含控制字符不合法。</summary>
     public static void Validate(string password)
     {
         if (string.IsNullOrEmpty(password))
