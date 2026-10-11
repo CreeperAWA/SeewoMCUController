@@ -129,7 +129,7 @@ internal sealed class ConsoleLogPane
         }
         if (snapshot.Length == 0)
         {
-            frame[2] = new ConsoleRow("（等待 MCU 事件；上行帧解析结果会实时出现在这里）", ConsoleColor.DarkGray);
+            frame[2] = new ConsoleRow("（等待 MCU 事件）", ConsoleColor.DarkGray);
         }
 
         frame[rows - 1] = new ConsoleRow(FooterText(rows), ConsoleColor.DarkGray);

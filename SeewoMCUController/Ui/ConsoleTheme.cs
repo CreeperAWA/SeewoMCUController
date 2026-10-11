@@ -5,7 +5,7 @@ namespace SeewoMCUController.Ui;
 /// <summary>
 /// 控制台显示主题。设置 <c>NO_COLOR</c> 或重定向输出时自动关闭颜色。
 /// <para>
-/// <b>不要在这里写 ANSI 转义序列。</b>cmd.exe 的传统控制台没有开启
+/// 使用控制台颜色 API，避免直接写入 ANSI 转义序列。
 /// <c>ENABLE_VIRTUAL_TERMINAL_PROCESSING</c>，<c>ESC [ 1 m</c> 会被原样打印成
 /// <c>□1m</c>、<c>ESC [ 2 2 m</c> 打印成 <c>□22m</c>，在表格单元格里堆出一片方块。
 /// 颜色一律走 <see cref="Console.ForegroundColor"/>（Windows 上映射到

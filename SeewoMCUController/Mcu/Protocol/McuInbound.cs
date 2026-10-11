@@ -142,7 +142,7 @@ public static class McuInbound
                 Frame = frame,
                 Main = main,
                 Name = "应用状态通知",
-                Detail = frame.Sub <= 1 ? $"sub={frame.Sub}" : "Unknown subCommand",
+                Detail = frame.Sub <= 1 ? $"子命令={frame.Sub}" : "未知子命令",
                 Kind = InboundKind.State,
             },
             (byte)MainIn.MinimizeAllWindows => Simple(frame, main, "最小化所有窗口"),
@@ -305,11 +305,11 @@ public static class McuInbound
                 AutoReply = "校验后回 (0x36,0x31)；正确再发 (0x36,0x12)",
             };
             case Main36.StatusAck:
-                return TaggedResponse(frame, "Android status/credential response", "status data");
+                return TaggedResponse(frame, "Android 状态/凭据应答", "状态数据");
             case Main36.SwitchStateAck:
-                return TaggedResponse(frame, "Android switch status response", "switch status");
+                return TaggedResponse(frame, "Android 开关状态应答", "开关状态");
             case Main36.BinaryAck:
-                return TaggedResponse(frame, "Android binary response", "binary data");
+                return TaggedResponse(frame, "Android 二进制应答", "二进制数据");
             case Main36.UsbLockFileToPc:
             {
                 byte type = frame.PayloadByte(0);
@@ -347,8 +347,8 @@ public static class McuInbound
                 {
                     Frame = frame,
                     Main = MainIn.Group36,
-                    Name = "Android requests unlock-file data",
-                    Detail = frame.PayloadLength == 0 ? "request next file chunk" : PayloadHex(frame),
+                    Name = "Android 请求回传解锁文件",
+                    Detail = frame.PayloadLength == 0 ? "请求下一段文件数据" : PayloadHex(frame),
                     Kind = InboundKind.Request,
                 };
             case Main36.PasswordResult:
@@ -356,12 +356,12 @@ public static class McuInbound
                 {
                     Frame = frame,
                     Main = MainIn.Group36,
-                    Name = "Password verification result",
+                    Name = "口令校验结果",
                     Detail = frame.PayloadByte(0) switch
                     {
-                        0 => "rejected (0x00)",
-                        1 => "accepted (0x01)",
-                        var value => $"unknown result=0x{value:X2}",
+                        0 => "拒绝 (0x00)",
+                        1 => "通过 (0x01)",
+                        var value => $"未知结果=0x{value:X2}",
                     },
                     Kind = InboundKind.State,
                 };

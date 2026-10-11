@@ -32,7 +32,7 @@ public sealed record CliOptions
     /// <summary>
     /// 驻留时限（秒），<c>0</c> 表示不限时。
     /// <para>
-    /// 锁屏类动作默认不限时：屏幕还锁着就不该自己退出。
+    /// 锁屏类动作默认不限时，直至屏幕解锁。
     /// 用户显式传入 <c>--hold-seconds</c> 时才启用时限。
     /// </para>
     /// </summary>
@@ -231,9 +231,8 @@ public sealed record CliOptions
         Console.WriteLine("      --hold-seconds <秒>   驻留时限；锁屏类动作默认不限时，给 0 也是不限时");
         Console.WriteLine("      --password <口令>     本次进程内设置锁屏口令（隐含 --hold --verbose）");
         Console.WriteLine();
-        Console.WriteLine("  注：lock lock / lock set-password 本身就要求驻留，无论是否加 --hold，");
-        Console.WriteLine("      命令执行完后都不会退出，直到解锁为止；驻留中可继续输入命令。");
-        Console.WriteLine("      驻留提示符下 exit 仅在屏幕未锁时可用。--no-auto-reply 不影响口令校验。");
+        Console.WriteLine("  说明：lock lock / lock set-password 执行后进入驻留模式，直至解锁。");
+        Console.WriteLine("      驻留期间可继续输入命令；屏幕锁定时禁止 exit。口令校验不受 --no-auto-reply 影响。");
         Console.WriteLine("  -v, --verbose             把上行事件逐条打印到标准输出");
         Console.WriteLine("      --dry-run              只回显命令，不连接设备");
         Console.WriteLine("      --selftest             打印并校验全部命令的构造帧");
@@ -445,7 +444,7 @@ public static class CliRunner
             // 锁屏动作必须驻留，直到解锁或取消。
             if ((options.Hold || action.MustHold) && holdReady)
             {
-                // 锁屏类动作默认不限时：屏幕还锁着就不该自己退出。
+                // 锁屏类动作默认不限时，直至屏幕解锁。
                 // 只有用户显式给了 --hold-seconds 才启用时限。
                 var opts = action.MustHold && !options.HoldSecondsExplicit
                     ? options.WithHoldSeconds(0)
@@ -475,7 +474,7 @@ public static class CliRunner
 
     /// <summary>
     /// 驻留模式下能否退出。屏幕还锁着时必须拒绝：此时进程一退，
-    /// 安卓板就再也等不到 <c>(0x36,0x31)</c> 应答，屏幕会永远锁着。
+    /// 退出前必须确保已完成 <c>(0x36,0x31)</c> 应答。
     /// </summary>
     internal static bool CanExitResident(McuDevice device) => !device.ScreenLocked;
 
@@ -497,7 +496,7 @@ public static class CliRunner
         if (!device.AutoReply)
             Console.WriteLine("[驻留] --no-auto-reply 已关闭对时 / SN 确认 / 文件回传 / U 盘弹窗的自动应答；"
                 + "锁屏口令校验不受影响，仍会正常应答。");
-        Console.WriteLine("[驻留] 可继续输入命令：unlock 解锁并退出 · exit 退出（锁屏时不可用）· Ctrl+C 强制结束");
+            Console.WriteLine("[驻留] 命令：unlock 解锁并退出 · exit 退出（锁屏时禁止）· Ctrl+C 终止");
         Console.WriteLine();
 
         var unlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -549,7 +548,7 @@ public static class CliRunner
                     if (!CanExitResident(device))
                     {
                         Console.WriteLine("[ERR] 屏幕仍处于锁屏状态，不能退出。");
-                        Console.WriteLine("      请先输入 unlock 解锁，或在 Android 上输入口令解锁后再退出。");
+                        Console.WriteLine("      请先执行 unlock，或在 Android 端完成口令解锁。");
                         continue;
                     }
                     Console.WriteLine("[驻留] 已退出。");

@@ -24,13 +24,7 @@ internal sealed class LogWindowProcess : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// 日志窗进程是否还活着。
-    /// <para>
-    /// 这里必须查进程句柄而不是「写管道是否失败」：管道有缓冲区，
-    /// 子进程被关掉后头几次写入仍会成功（数据进缓冲区后才被内核丢弃），
-    /// 所以靠 <see cref="Send"/> 的返回值判断会慢好几拍，甚至一直判断不出来。
-    /// <c>WaitForSingleObject(handle, 0)</c> 直接问内核进程还在不在，是准确的。
-    /// </para>
+    /// 日志窗口进程是否仍在运行。
     /// </summary>
     public bool IsAlive
     {

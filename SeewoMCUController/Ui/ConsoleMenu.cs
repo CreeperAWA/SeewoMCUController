@@ -152,7 +152,7 @@ public sealed class ConsoleMenu : IDisposable
         int w = Terminal.Width;
         if (!reserveLogPane)
         {
-            // 日志在另一个窗口，这里整屏都是操作面板。
+            // 独立日志窗口启用后，当前窗口仅显示操作面板。
             return new Layout(h, 0, Math.Max(1, h - 1), w, h);
         }
 
@@ -216,9 +216,9 @@ public sealed class ConsoleMenu : IDisposable
         if (TryOpenLogWindow())
         {
             LogWindowNotice("已打开独立日志窗口，关闭任一窗口都会退出整个程序。");
-            // 看门狗：日志窗一旦消失就取消整个操作台。
+            // 日志窗口关闭后终止操作台。
             // 必须独立于输入循环 —— 输入可能被阻塞在 ReadLine / ReadKey 上，
-            // 只在重绘时检查会漏掉「用户在等待输入时关掉日志窗」这种最常见的情况。
+            // 独立任务覆盖等待输入期间的关闭事件。
             _ = WatchLogWindowAsync(linked);
         }
         else
@@ -273,7 +273,7 @@ public sealed class ConsoleMenu : IDisposable
     private bool LogWindowAlive => _logWindowStarted && _logWindow.IsAlive;
 
     /// <summary>
-    /// 看门狗：轮询日志窗存活状态，一旦消失就取消操作台（两个窗同生共死）。
+    /// 轮询日志窗口状态，关闭后取消操作台。
     /// <para>
     /// 之所以要独立于输入循环：主线程可能正阻塞在 <see cref="Console.ReadLine"/> 或
     /// 等待按键上，此时主循环里的检查点根本走不到。
@@ -405,7 +405,7 @@ public sealed class ConsoleMenu : IDisposable
                     case ConsoleKey.Enter:
                         // 光标停在最后一行时写 '\n' 会把缓冲区整个滚上去，
                         // WindowTop 随之大于 0，之后按缓冲区行号定位就全部错位。
-                        // 这里只移动光标、不输出换行：提示符由下一次 Present 重画。
+                        // 仅移动光标，提示符由下一次 Present 重绘。
                         Terminal.TrySetCursor(0, _promptRow);
                         return buffer.ToString();
                     case ConsoleKey.Escape:
@@ -473,12 +473,7 @@ public sealed class ConsoleMenu : IDisposable
     }
 
     /// <summary>
-    /// 输入被重定向时的读行。
-    /// <para>
-    /// <see cref="Console.ReadLine"/> 是阻塞调用，日志窗被关掉时看门狗虽然取消了令牌，
-    /// 这里却还在等输入，整个程序就退不掉了。所以把阻塞读放到后台线程，
-    /// 主线程只等「读完了」或「令牌取消了」两者之一。
-    /// </para>
+    /// 读取重定向输入，并支持取消。
     /// </summary>
     private static async Task<string?> ReadLineRedirectedAsync(CancellationToken cancellationToken)
     {
@@ -551,7 +546,7 @@ public sealed class ConsoleMenu : IDisposable
     private async Task<string[]?> PromptArgsAsync(McuCategory category, McuAction action, CancellationToken cancellationToken)
     {
         // OwnInputPrompt 的动作（例如设置锁屏口令）参数要由 ExecuteAsync 走专用交互流程采集，
-        // 不能在这里用通用单行提示抢走。
+            // 锁屏操作使用专用确认流程。
         if (action.OwnInputPrompt || string.IsNullOrEmpty(action.Usage)) return Array.Empty<string>();
         var line = await PromptAsync(
             () => BuildCategoryScreen(category),
@@ -628,7 +623,7 @@ public sealed class ConsoleMenu : IDisposable
     {
         var lines = new List<string>
         {
-            "  此功能存在风险，请确保出现问题后你有能力解决",
+            "  风险操作：锁屏后需完成口令解锁。",
             "",
         };
 

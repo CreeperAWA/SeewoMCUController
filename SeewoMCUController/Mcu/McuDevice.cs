@@ -402,7 +402,7 @@ public sealed class McuDevice : IDisposable
     /// <summary>
     /// 本进程根据最近一次成功发送的锁屏/解锁帧维护的本地状态。
     /// <para>
-    /// 驻留期间据此拦住 <c>exit</c>：屏幕还锁着就退出，会让安卓板永远等不到口令应答。
+    /// 驻留期间禁止锁屏状态下执行 <c>exit</c>。
     /// </para>
     /// </summary>
     public bool ScreenLocked { get; private set; }
@@ -492,10 +492,7 @@ public sealed class McuDevice : IDisposable
         ApplyState(evt);
         Inbound?.Invoke(evt);
 
-        // 口令校验独立于 AutoReply：安卓板是先上报 (0x36,0x30) 才等 (0x36,0x31)，
-        // 漏掉这一帧应答就等于告诉安卓板「不解锁」，屏幕会一直锁着。
-        // 因此 --no-auto-reply 只关掉对时 / SN 确认 / 文件回传 / U 盘弹窗那类，
-        // 不能牵连口令校验。
+        // 口令校验始终应答；其它自动应答受 AutoReply 控制。
         if (IsScreenPassword(frame)) ReplyScreenPassword(frame);
         if (_autoReply) TryAutoReply(evt);
     }
@@ -589,7 +586,7 @@ public sealed class McuDevice : IDisposable
                     Send(McuOutbound.SyncTimeNow());
                     break;
                 case (byte)MainIn.Group36:
-                    // ScreenPassword 已在 OnFrameReceived 里无条件处理，这里不重复应答。
+                    // 口令帧已在 OnFrameReceived 中处理。
                     switch ((Main36)f.Sub)
                     {
                         case Main36.UsbLockFileToPc when f.PayloadByte(0) == 0xFF:
