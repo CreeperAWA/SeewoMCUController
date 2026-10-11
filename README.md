@@ -55,8 +55,7 @@ Seewo MCU Controller 是一个运行在 Windows 上的命令行控制工具，�
 ## 环境要求
 
 - Windows 10 或 Windows 11；
-- .NET 8.0 SDK（从源码构建）；
-- .NET 8.0 Runtime（运行框架依赖版本）；
+- .NET 8.0 SDK（从源码构建，运行不需要安装）；
 - 可访问目标 HID 设备。
 
 项目使用 .NET 8，并启用 Native AOT 发布配置。程序依赖 Windows 控制台和 HID 设备发现 API，不以 Linux 或 macOS 为目标平台。
