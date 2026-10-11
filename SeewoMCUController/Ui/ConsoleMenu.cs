@@ -243,25 +243,25 @@ public sealed class ConsoleMenu : IDisposable
                 case "h":
                 case "help":
                 case "?":
-                    ShowModal("命令帮助", HelpText(), cancellationToken);
+                    ShowModal("命令帮助", HelpText(), linked.Token);
                     continue;
                 case "c":
                 case "color":
                     ConsoleTheme.ToggleColors();
                     continue;
                 case "d":
-                    await RunCategoryAsync("system", "handshake-seq", cancellationToken).ConfigureAwait(false);
+                    await RunCategoryAsync("system", "handshake-seq", linked.Token).ConfigureAwait(false);
                     continue;
             }
 
             if (int.TryParse(input, out int choice) && choice >= 1 && choice <= McuActionRegistry.Categories.Count)
             {
-                await RunCategoryLoopAsync(McuActionRegistry.Categories[choice - 1], cancellationToken).ConfigureAwait(false);
+                await RunCategoryLoopAsync(McuActionRegistry.Categories[choice - 1], linked.Token).ConfigureAwait(false);
                 continue;
             }
 
             // 直接键入命令：audio.mute / mute / channel switch pc
-            await RunCommandLineAsync(input, cancellationToken).ConfigureAwait(false);
+            await RunCommandLineAsync(input, linked.Token).ConfigureAwait(false);
         }
     }
 

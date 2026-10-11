@@ -152,7 +152,19 @@ internal static class LogWindowCli
         }
 
         /// <summary>收到退出信号（Ctrl+C / 关闭窗口）。</summary>
-        public void RequestShutdown() => _shutdown = true;
+        public void RequestShutdown()
+        {
+            _shutdown = true;
+            _ready.Set();
+            try
+            {
+                // ReadLine() 可能正阻塞在管道上，仅设置标志无法唤醒读取线程。
+                _reader.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
 
         /// <summary>父进程已关闭管道。</summary>
         public bool PipeClosed => _pipeClosed;
@@ -186,6 +198,10 @@ internal static class LogWindowCli
             catch (IOException)
             {
                 // 管道断开
+            }
+            catch (ObjectDisposedException)
+            {
+                // 收到关闭请求
             }
             finally
             {
