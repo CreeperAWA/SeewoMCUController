@@ -681,7 +681,7 @@ public sealed class ConsoleMenu : IDisposable
             $"  {LockPasswordStore.AdviceLine1}",
             $"  {LockPasswordStore.AdviceLine2}",
             "",
-            "  口令只保存在本进程内，仅用于校验安卓板上行的 (0x36,0x30) 口令，不写盘、不发 MCU 命令。",
+            "  口令只保存在本进程内，仅用于校验安卓板上行的 (0x36,0x30)。",
             "  直接回车表示放弃设置。",
         }, "请输入口令> ", cancellationToken).ConfigureAwait(false);
         if (first is null) return null;
