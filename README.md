@@ -15,7 +15,8 @@ Seewo MCU Controller 是一个运行在 Windows 上的命令行控制工具，�
 为了避免有人没看完 README 就使用，这里特别强调一下：
 
 > [!CAUTION]
-> 本程序的锁 Android 屏功能会触发 Android 内的屏幕锁，不是熄灭屏幕！为防止误操作，TUI 中已设置二次确认，并且只能锁屏 10s，如果您使用 CLI 执行锁屏命令，会一直锁屏，直到执行解锁命令或依照锁屏页面流程（如使用密码、U 盘）解锁屏幕。此锁非 U 盘锁！
+> 本程序的锁 Android 屏功能会触发 Android 内的屏幕锁，不是熄灭屏幕！这是一个很危险的功能，如果你只是无聊，请不要动它！
+> 为防止误操作，TUI 中已设置二次确认，在未设置密码的前提下只能锁屏 10s，如果您使用 CLI 执行锁屏命令，会一直锁屏，直到执行解锁命令或依照锁屏页面流程（如使用密码、U 盘）解锁屏幕。此锁非 U 盘锁！
 
 ## 功能概览
 
@@ -27,6 +28,7 @@ Seewo MCU Controller 是一个运行在 Windows 上的命令行控制工具，�
 - PC、TV、HDMI、VGA、Android 通道切换；
 - 默认通道设置、当前通道上报和全通道状态请求；
 - Android 屏幕锁定、解锁及口令相关应答；
+- 锁屏口令的设置（两次输入确认）、清除与 MD5 校验；
 - 时间同步、关机通知、音视频模式声明、WOL、WOL 服务名注册；
 - 打开网络设置菜单、线屏插入通知、触控笔开关；
 - U 盘解锁通知、解锁文件回传请求、SN 接收确认以及多种状态应答；
@@ -55,7 +57,7 @@ Seewo MCU Controller 是一个运行在 Windows 上的命令行控制工具，�
 - Windows 10 或 Windows 11；
 - .NET 8.0 SDK（从源码构建）；
 - .NET 8.0 Runtime（运行框架依赖版本）；
-- 可访问目标 HID 设备的。
+- 可访问目标 HID 设备。
 
 项目使用 .NET 8，并启用 Native AOT 发布配置。程序依赖 Windows 控制台和 HID 设备发现 API，不以 Linux 或 macOS 为目标平台。
 
@@ -129,13 +131,18 @@ CLI 选项可以放在动作前或动作后。需要带值的选项使用空格�
 | 选项 | 说明 |
 | --- | --- |
 | `-h`, `--help` | 显示用法、选项和分类概览 |
-| `-d`, `--device-path <路径>` | 指定 HID 设备路径；不指定时自动选择检测到的设备 |
-| `--frame <模式>` | 指定帧模式：`auto`、`raw` 或 `framed`；默认是 `auto` |
+| `-d`, `--device-path <路径>`、`--device <路径>` | 指定 HID 设备路径；不指定时自动选择检测到的设备 |
+| `--frame <模式>`、`--frame-mode <模式>` | 指定帧模式：`auto`、`raw` 或 `framed`；默认是 `auto` |
 | `--no-handshake` | 连接后不执行握手序列 |
-| `--no-auto-reply` | 关闭后台事件的自动应答 |
+| `--no-auto-reply` | 关闭后台事件的自动应答；**不影响锁屏口令校验** |
 | `--no-connect` | 保留给本地动作使用；不会替代需要设备连接的动作 |
 | `--timeout <毫秒>` | 查询类动作等待回包的时间；默认 `2000` |
+| `--hold`、`--wait-unlock` | 动作执行完后驻留，持续应答上行请求（口令校验等）。`lock lock` 与 `lock set-password` 本来就会驻留 |
+| `--hold-seconds <秒>` | 驻留时限；**默认不限时**，给 `0` 同样是不限时 |
+| `--password <口令>`、`--pwd <口令>` | 本次进程内设置锁屏口令；隐含 `--hold` 与 `--verbose` |
+| `-v`, `--verbose` | 把 MCU 上行事件逐条打印到标准输出 |
 | `--dry-run` | 只校验动作和参数并打印将执行的命令，不连接设备 |
+| `--selftest` | 构造并校验全部命令帧，不连接设备 |
 | `--categories` | 列出全部 CLI 分类 |
 | `--commands [分类]` | 列出全部动作，或只列出指定分类的动作 |
 | `--devices` | 枚举检测到的 HID 设备 |
@@ -148,6 +155,7 @@ SeewoMCUController.exe --categories
 SeewoMCUController.exe --commands
 SeewoMCUController.exe --commands audio
 SeewoMCUController.exe --devices
+SeewoMCUController.exe --selftest
 ```
 
 推荐先使用 `--commands` 查看当前版本的精确动作、参数和对应功能，再将命令用于脚本。CLI 返回码约定如下：
@@ -197,8 +205,10 @@ SeewoMCUController.exe --devices
 | --- | --- | --- |
 | `lock` | `lock lock` | 锁定 Android 屏幕 |
 | `unlock` | `lock unlock` | 解锁 Android 屏幕 |
+| `set-password` | `lock set-password <口令>` | 设置锁屏口令；TUI 中会要求输入两遍确认 |
+| `clear-password` | `lock clear-password` | 清除锁屏口令，回到任何口令都能解锁 |
+| `pwd-status` | `lock pwd-status` | 查看当前口令是否已设置 |
 | `pwd` | `lock pwd <口令>` | 返回口令校验结果；通过时按配置自动解锁 |
-| `set-password` | `lock set-password <口令>` | 在本进程记录参考口令，不向设备发送设置口令请求 |
 | `file-back` | `lock file-back` | 请求回传解锁文件数据 |
 | `sn-ack` | `lock sn-ack` | 确认收到 SN |
 | `notice` | `lock notice [tag]` | 发送无负载通知 |
@@ -206,6 +216,94 @@ SeewoMCUController.exe --devices
 | `ack16` | `lock ack16 [tag] [负载]` | 发送开关或弹窗状态应答 |
 | `ack18` | `lock ack18 [tag] [负载]` | 发送二进制负载应答 |
 | `ack35` | `lock ack35 <v1> [v2 v3]` | 发送状态应答 |
+
+#### 锁屏口令
+
+锁 Android 屏后，安卓板把用户在锁屏页输入的**明文口令**放进 `(0x36,0x30)` 负载，PC 侧校验后回
+`(0x36,0x31)` + 1 字节（`1` 通过 / `0` 不通过），为 `1` 时再发 `(0x36,0x12)` 解锁。
+
+本程序的校验方式与官方 `SeewoUSBLockMonitor.exe` 一致：对**原始负载字节**做 MD5，
+得到 32 位小写十六进制后与本机保存的值比对（官方 `DevLockService::VerifyLockPwdByLocalCache`）。
+口令只存在于本进程内存中，退出即失效，不写盘、不修改系统配置。
+
+| 状态 | 行为 |
+| --- | --- |
+| 未设置口令 | 任何口令都判定为正确，保持原有行为 |
+| 已设置口令 | 只有口令完全一致（区分大小写与符号）才回 `1` 并解锁 |
+
+口令校验始终自动应答，`--no-auto-reply` 与 `link auto-reply off` 都不会关掉它。
+
+口令可用大小写字母、数字和符号，建议不超过 48 位。该数值仅用于兼容性提示，不限制实际输入；仍不建议使用过长或含大量特殊字符的口令：
+部分 Android 输入法无法正确输入这类字符，会导致锁屏之后再也解不开。TUI 的锁屏菜单会常驻显示这条提示。
+
+在 TUI 中执行 `set-password` 时会要求输入两遍，两次不一致则放弃设置、原口令保持不变。
+命令行直接给出口令则跳过确认：
+
+```powershell
+SeewoMCUController.exe lock set-password 'Passw0rd'
+SeewoMCUController.exe lock pwd-status
+SeewoMCUController.exe lock clear-password
+```
+
+#### 命令行锁屏会自动驻留
+
+安卓板是在收到 `(0x36,0x10)` 之后才弹出锁屏页的，用户输完口令才会上报 `(0x36,0x30)`。
+**PC 侧必须一直在运行才能应答**，否则安卓板的上报无人受理，屏幕再也解不开。
+
+因此 `lock lock` 和 `lock set-password` 在命令行下**执行完都不会退出**，会自动驻留等待校验，
+不需要额外加 `--hold`，且**默认不限时**——屏幕还锁着，进程就没有自行退出的道理。
+
+驻留期间会出现 `驻留>` 提示符，可以继续输入命令：
+
+| 输入 | 行为 |
+| --- | --- |
+| `unlock` / `lock unlock` | 解锁 Android 屏，随后自动结束驻留 |
+| `exit` / `quit` / `q` | 退出。**屏幕仍锁着时会被拒绝**，先解锁才能退 |
+| `help` | 显示驻留模式可用命令 |
+| 其它命令 | 与单次 CLI 用法相同，例如 `info show`、`lock pwd-status` |
+
+驻留结束条件（满足任一即可）：
+
+- 口令校验通过并已发出 `(0x36,0x12)` → 立即退出；
+- 执行了 `unlock` → 退出；
+- 输入 `exit` 且屏幕未锁 → 退出；
+- 显式给了 `--hold-seconds` 且到达时限 → 退出；
+- 按 Ctrl+C → 强制退出（操作系统级中断，不做拦截）。
+
+```powershell
+# 直接锁屏，自动驻留；未设口令时任何口令都能解锁
+SeewoMCUController.exe lock lock
+
+# 设口令 + 锁屏 + 驻留（--password 隐含 --hold 与 --verbose）
+SeewoMCUController.exe lock lock --password 'Passw0rd'
+
+# 等价写法：先设口令，再锁屏，两步合成一次调用
+SeewoMCUController.exe lock set-password 'Passw0rd'
+
+# 显式声明不限时（本来就是默认）
+SeewoMCUController.exe lock lock --hold-seconds 0
+
+# 指定驻留时限（不指定则不限时）
+SeewoMCUController.exe lock lock --password 'Passw0rd' --hold-seconds 120
+```
+
+驻留期间在 `驻留>` 提示符下可以继续下命令：
+
+```text
+驻留> unlock        # 解锁并退出驻留
+驻留> exit          # 屏幕已解锁时退出
+驻留> exit          # 屏幕还锁着 → [ERR] 屏幕仍处于锁屏状态，不能退出
+```
+
+> `lock set-password` 是纯本地动作，本身不发送 MCU 命令。为了让「设口令」在命令行下
+> 真正有意义，它执行后会自动补发一帧锁屏，再进入驻留；TUI 菜单里两者仍是独立动作。
+
+#### 口令校验不受自动应答开关影响
+
+`--no-auto-reply` / `link auto-reply off` 只关闭对时、SN 确认、文件回传、U 盘弹窗这几类自动应答。
+**锁屏口令校验 `(0x36,0x30)` 始终自动应答**，不受该开关影响：漏掉这一帧就等于告诉安卓板
+「不解锁」，屏幕会一直锁着。因此即使加了 `--no-auto-reply`，口令解锁依然可用。
+
 
 ### `info` 设备信息
 
@@ -270,7 +368,7 @@ SeewoMCUController.exe device raw 43 114 hello
 | --- | --- | --- |
 | `devices` | `link devices` | 枚举 HID 设备 |
 | `frame-mode` | `link frame-mode [auto\|raw\|framed]` | 查看或切换帧模式 |
-| `auto-reply` | `link auto-reply [on\|off]` | 查看或开关自动应答 |
+| `auto-reply` | `link auto-reply [on\|off]` | 查看或开关自动应答（不影响锁屏口令校验） |
 | `inter-frame` | `link inter-frame [毫秒]` | 查看或设置帧间延迟 |
 | `disconnect` | `link disconnect` | 断开当前连接 |
 | `reconnect` | `link reconnect` | 重连并重新握手 |
@@ -284,7 +382,7 @@ SeewoMCUController.exe device raw 43 114 hello
 | 音频设置 | 音量、静音和声音模式 |
 | 视频设置 | 显示模式 |
 | 通道设置 | 输入源切换、默认通道和通道状态 |
-| 锁屏设置 | 锁屏、解锁、口令及相关应答 |
+| 锁屏设置 | 锁屏、解锁、口令设置与校验及其他应答（菜单顶部常驻显示口令状态与兼容性提示） |
 | 设备信息 | 设备状态和查询 |
 | 系统与电源 | 握手、时间、电源、WOL 和系统菜单 |
 | 外设与工具 | 触控笔、U 盘通知和原始帧 |
