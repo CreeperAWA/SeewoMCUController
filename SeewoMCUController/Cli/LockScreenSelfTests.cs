@@ -282,13 +282,14 @@ public static partial class SelfTest
         Line("清除后回到任何口令都正确", !store.IsSet && store.Verify("anything"));
 
         Throws("空口令被拒绝", () => store.Set(string.Empty));
-        Throws($"超长口令（>{LockPasswordStore.MaxLength} 位）被拒绝",
-            () => store.Set(new string('x', LockPasswordStore.MaxLength + 1)));
+        string longPassword = new string('x', LockPasswordStore.RecommendedLength + 1);
+        store.Set(longPassword);
+        Line("超过建议长度的口令仍可设置", store.IsSet && store.Verify(longPassword));
         Throws("含控制字符的口令被拒绝", () => store.Set("a\tb"));
         Throws("含 NUL 的口令被拒绝", () => store.Set("a\0b"));
 
         Line("短纯字母数字无风险提示", LockPasswordStore.DescribeRisks("abc123").Count == 0);
-        Line("超长口令有风险提示", LockPasswordStore.DescribeRisks(new string('x', 14)).Count > 0);
+        Line("超过建议长度有风险提示", LockPasswordStore.DescribeRisks(longPassword).Count > 0);
         Line("含特殊字符有风险提示", LockPasswordStore.DescribeRisks("abc!").Count > 0);
 
         Console.WriteLine($"    {LockPasswordStore.AdviceLine1}");

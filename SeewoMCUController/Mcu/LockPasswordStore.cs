@@ -24,14 +24,11 @@ namespace SeewoMCUController.Mcu;
 /// </summary>
 public sealed class LockPasswordStore
 {
-    /// <summary>口令长度上限。安卓板侧与 64 字节帧的负载容量都远大于该值。</summary>
-    public const int MaxLength = 16;
-
-    /// <summary>建议长度上限。超过只是提醒，不是硬限制。</summary>
-    public const int RecommendedLength = 12;
+    /// <summary>建议的口令长度上限，仅用于兼容性提示，不限制输入。</summary>
+    public const int RecommendedLength = 48;
 
     /// <summary>菜单里的兼容性提示（第 1 行）。</summary>
-    public const string AdviceLine1 = "口令可用大小写字母、数字和符号，建议不超过 12 位且少用特殊字符；";
+    public const string AdviceLine1 = "口令可用大小写字母、数字和符号，建议不超过 48 位且少用特殊字符；";
 
     /// <summary>菜单里的兼容性提示（第 2 行）。</summary>
     public const string AdviceLine2 = "过长或含大量特殊字符的口令，部分 Android 输入法无法正确输入，会导致锁屏后解不开。";
@@ -99,7 +96,7 @@ public sealed class LockPasswordStore
     // ------------------------------------------------------------------ 设置 / 清除
 
     /// <summary>
-    /// 设置口令。非法输入（空、超长、含控制字符）抛 <see cref="ArgumentException"/>。
+    /// 设置口令。非法输入（空、含控制字符）抛 <see cref="ArgumentException"/>。
     /// </summary>
     public void Set(string password)
     {
@@ -127,8 +124,6 @@ public sealed class LockPasswordStore
     {
         if (string.IsNullOrEmpty(password))
             throw new ArgumentException("口令不能为空；如需取消设置请直接放弃", nameof(password));
-        if (password.Length > MaxLength)
-            throw new ArgumentException($"口令 {password.Length} 位，超出上限 {MaxLength} 位", nameof(password));
         if (password.Contains('\0'))
             throw new ArgumentException("口令不能包含 NUL", nameof(password));
         foreach (char c in password)

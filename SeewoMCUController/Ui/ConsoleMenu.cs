@@ -215,7 +215,7 @@ public sealed class ConsoleMenu : IDisposable
 
         if (TryOpenLogWindow())
         {
-            LogWindowNotice("已打开独立日志窗口：MCU 事件、收发帧与命令结果都在那个窗口里实时刷新。关闭任一窗口都会退出整个程序。");
+            LogWindowNotice("已打开独立日志窗口，关闭任一窗口都会退出整个程序。");
             // 看门狗：日志窗一旦消失就取消整个操作台。
             // 必须独立于输入循环 —— 输入可能被阻塞在 ReadLine / ReadKey 上，
             // 只在重绘时检查会漏掉「用户在等待输入时关掉日志窗」这种最常见的情况。
