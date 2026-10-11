@@ -64,6 +64,8 @@ public sealed class McuDevice : IDisposable
         {
             _link.FrameMode = value;
             _link.AutoDetectFrameMode = value == FrameMode.Auto;
+            _link.ResetConfirmedFrameMode();
+            _probed = false;
             StatusChanged?.Invoke($"帧模式切换为 {DescribeMode(value)}");
         }
     }
@@ -205,18 +207,21 @@ public sealed class McuDevice : IDisposable
     public async Task<bool> ProbeFrameModeAsync(CancellationToken cancellationToken = default)
     {
         if (!_link.AutoDetectFrameMode || _probed) return true;
-        _probed = true;
-
         var candidates = new[] { FrameMode.Framed, FrameMode.Raw };
         foreach (var candidate in candidates)
         {
             _link.FrameMode = candidate;
             _link.ResetConfirmedFrameMode();
             StatusChanged?.Invoke($"探测帧模式: {DescribeMode(candidate)} …");
-            var reply = await _link.RequestAsync(McuOutbound.Handshake(), _ => true, _link.ProbeTimeoutMs, cancellationToken)
+            var reply = await _link.RequestAsync(
+                McuOutbound.Handshake(),
+                e => e.Frame.Main == (byte)MainIn.MachineType,
+                _link.ProbeTimeoutMs,
+                cancellationToken)
                 .ConfigureAwait(false);
             if (reply is not null)
             {
+                _probed = true;
                 StatusChanged?.Invoke($"帧模式已确认: {DescribeMode(candidate)}（收到 {reply.Name}）");
                 return true;
             }

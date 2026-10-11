@@ -65,11 +65,6 @@ public static class HidDeviceDiscovery
             
             NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
         }
-        else
-        {
-
-        }
-        
         return devices;
     }
 

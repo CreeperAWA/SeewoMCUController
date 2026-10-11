@@ -110,8 +110,8 @@ public sealed record CliOptions
                     options.ListCommands = i + 1 < args.Length ? args[++i] : string.Empty;
                     break;
                 case "--timeout":
-                    if (++i >= args.Length || !int.TryParse(args[i], out int ms))
-                        return Fail("--timeout 需要毫秒数", out options, out error);
+                    if (++i >= args.Length || !int.TryParse(args[i], out int ms) || ms < 0)
+                        return Fail("--timeout 需要非负毫秒数", out options, out error);
                     options.QueryTimeoutMs = ms;
                     break;
                 case "--hold":
@@ -151,8 +151,8 @@ public sealed record CliOptions
                     }
                     else if (lower.StartsWith("--timeout=", StringComparison.Ordinal))
                     {
-                        if (!int.TryParse(arg["--timeout=".Length..], out int t))
-                            return Fail("--timeout 需要毫秒数", out options, out error);
+                        if (!int.TryParse(arg["--timeout=".Length..], out int t) || t < 0)
+                            return Fail("--timeout 需要非负毫秒数", out options, out error);
                         options.QueryTimeoutMs = t;
                     }
                     else if (lower.StartsWith("--hold-seconds=", StringComparison.Ordinal))
@@ -362,6 +362,12 @@ public static class CliRunner
         {
             Console.Error.WriteLine($"错误: 未知命令 '{string.Join(' ', options.Rest)}'");
             Console.Error.WriteLine("提示: 第一段是分类时需要再跟一个动作名；用 --categories / --commands 查看可用项。");
+            return 2;
+        }
+
+        if (options.NoConnect && !options.DryRun && !action.Offline)
+        {
+            Console.Error.WriteLine("错误: 该动作需要连接设备");
             return 2;
         }
 

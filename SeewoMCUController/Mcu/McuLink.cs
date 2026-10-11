@@ -40,7 +40,7 @@ public sealed class McuLink : IDisposable
     }
 
     /// <summary>上行帧模式。<see cref="FrameMode.Auto"/> 时由握手探测锁定。</summary>
-    public FrameMode FrameMode { get; set; } = FrameMode.Framed;
+    public FrameMode FrameMode { get; set; } = FrameMode.Auto;
 
     /// <summary>是否自动探测帧模式（<see cref="FrameMode.Auto"/>）。</summary>
     public bool AutoDetectFrameMode { get; set; } = true;
@@ -103,6 +103,8 @@ public sealed class McuLink : IDisposable
     {
         _running = false;
         FailPending("链路已关闭");
+        if (_reader is { IsAlive: true } reader && !ReferenceEquals(Thread.CurrentThread, reader))
+            reader.Join(500);
     }
 
     private void ReadLoop()

@@ -1,11 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
-using System.Diagnostics;
 
 namespace SeewoMCUController.Mcu
 {
@@ -14,12 +9,12 @@ namespace SeewoMCUController.Mcu
         private SafeFileHandle? _hWriteFile;
         private SafeFileHandle? _hReadFile;
 
-        private const uint GenericRead = 0x80000000;
-        private const uint GenericWrite = 0x40000000;
-        private const uint FileShareRead = 0x00000001;
-        private const uint FileShareWrite = 0x00000002;
-        private const uint FileAttributeNormal = 0x00000080;
-        private const uint OpenExisting = 3;
+        private const uint GenericRead = WindowsApi.GENERIC_READ;
+        private const uint GenericWrite = WindowsApi.GENERIC_WRITE;
+        private const uint FileShareRead = WindowsApi.FILE_SHARE_READ;
+        private const uint FileShareWrite = WindowsApi.FILE_SHARE_WRITE;
+        private const uint FileAttributeNormal = WindowsApi.FILE_ATTRIBUTE_NORMAL;
+        private const uint OpenExisting = WindowsApi.OPEN_EXISTING;
 
         public bool IsConnected
         {
@@ -85,119 +80,11 @@ namespace SeewoMCUController.Mcu
             return ok;
         }
 
-        public bool ReadWithTimeout(int length, out byte[] data, int timeoutMs = 5000)
-        {
-            data = new byte[length];
-            if (!IsConnected || _hReadFile == null)
-                return false;
-
-            try
-            {
-                var sw = Stopwatch.StartNew();
-                var buffer = new List<byte>();
-
-                while (sw.ElapsedMilliseconds < timeoutMs)
-                {
-                    int remaining = Math.Max(1, timeoutMs - (int)sw.ElapsedMilliseconds);
-
-                    var task = Task.Run(() =>
-                    {
-                        byte[] local = new byte[length];
-                        uint bytesRead = 0u;
-                        bool ok = WindowsApi.ReadFile(_hReadFile, local, (uint)length, ref bytesRead, IntPtr.Zero);
-                        return (ok, local, (int)bytesRead);
-                    });
-
-                    bool finished = task.Wait(TimeSpan.FromMilliseconds(remaining));
-                    if (!finished)
-                    {
-
-                        continue;
-                    }
-
-                    var (okRead, localData, bytesReadCount) = task.Result;
-                    if (!okRead || bytesReadCount <= 0)
-                    {
-                        continue;
-                    }
-
-                    // append received bytes
-                    if (bytesReadCount < localData.Length)
-                        buffer.AddRange(localData.Take(bytesReadCount));
-                    else
-                        buffer.AddRange(localData);
-
-                    // Debug: show first bytes collected
-                    try
-                    {
-
-                    }
-                    catch { }
-
-                    
-                    // find header: pattern 0xFC,0xA5,ANY,0x3B,0x00
-                    int headerIndex = -1;
-                    for (int i = 0; i <= buffer.Count - 5; i++)
-                    {
-                        if (buffer[i] == 0xFC && buffer[i + 1] == 0xA5 && buffer[i + 3] == 0x3B && buffer[i + 4] == 0x00)
-                        {
-                            headerIndex = i;
-                            break;
-                        }
-                    }
-
-                    if (headerIndex >= 0)
-                    {
-                        if (buffer.Count >= headerIndex + 10)
-                        {
-                            int payloadLen = BitConverter.ToInt16(buffer.ToArray(), headerIndex + 8);
-                            int totalLen = 10 + payloadLen;
-                            if (buffer.Count >= headerIndex + totalLen)
-                            {
-                                var packet = buffer.Skip(headerIndex).Take(totalLen).ToArray();
-                                int copyLen = Math.Min(length, packet.Length);
-                                Array.Clear(data, 0, data.Length);
-                                Array.Copy(packet, 0, data, 0, copyLen);
-                                return true;
-                            }
-                        }
-                    }
-
-                    if (headerIndex < 0 && buffer.Count >= length)
-                    {
-                        Array.Clear(data, 0, data.Length);
-                        Array.Copy(buffer.Take(length).ToArray(), data, length);
-                        return true;
-                    }
-
-                    // continue until timeout
-                }
-
-
-                return false;
-            }
-            catch (Exception)
-            {
-
-                return false;
-            }
-        }
-
-        public bool ReadWithShortTimeout(int length, out byte[] data)
-        {
-            return ReadWithTimeout(length, out data, 100); // 100ms 超时
-        }
-
         public bool Write(byte[] data)
         {
             VerifyConnection();
             uint bytesWritten = 0;
             bool ok = WindowsApi.WriteFile(_hWriteFile!, data, (uint)data.Length, ref bytesWritten, IntPtr.Zero);
-            try
-            {
-
-            }
-            catch { }
             return ok;
         }
 
@@ -222,8 +109,15 @@ namespace SeewoMCUController.Mcu
             {
                 return true;
             }
-            string strSearch = string.Format("vid_{0:x4}&pid_{1:x4}", usbId.Vid, usbId.Pid);
-            DeviceInfo? deviceInfo = deviceList.FirstOrDefault(deviceItem => (deviceItem.DevicePath.IndexOf(strSearch, StringComparison.Ordinal) >= 0 && deviceItem.DevicePath.IndexOf(usbId.Key, StringComparison.Ordinal) >= 0 && usbId.Rev == 0) || deviceItem.Rev == 0 || usbId.Rev == deviceItem.Rev);
+            string strSearch = $"vid_{usbId.Vid:x4}&pid_{usbId.Pid:x4}";
+            DeviceInfo? deviceInfo = deviceList.FirstOrDefault(deviceItem =>
+            {
+                bool identityMatches = deviceItem.DevicePath.Contains(strSearch, StringComparison.OrdinalIgnoreCase)
+                    && (string.IsNullOrEmpty(usbId.Key)
+                        || deviceItem.DevicePath.Contains(usbId.Key, StringComparison.OrdinalIgnoreCase));
+                bool revisionMatches = usbId.Rev == 0 || deviceItem.Rev == 0 || usbId.Rev == deviceItem.Rev;
+                return identityMatches && revisionMatches;
+            });
             if (deviceInfo != null)
             {
                 usbId.DeviceName = deviceInfo.DevicePath;

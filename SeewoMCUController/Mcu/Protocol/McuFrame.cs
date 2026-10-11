@@ -58,7 +58,8 @@ public sealed class McuFrame
 
     public McuFrame(byte[] buffer)
     {
-        Buffer = buffer.Length == Size ? buffer : new byte[Size];
+        if (buffer is null) throw new ArgumentNullException(nameof(buffer));
+        Buffer = new byte[Size];
         Array.Copy(buffer, Buffer, Math.Min(buffer.Length, Size));
     }
 
@@ -77,6 +78,7 @@ public sealed class McuFrame
 
     public ReadOnlySpan<byte> PayloadBytes(int offset, int count)
     {
+        if (offset < 0 || count <= 0) return ReadOnlySpan<byte>.Empty;
         int start = PayloadOffset + offset;
         if (start < 0 || start >= Size) return ReadOnlySpan<byte>.Empty;
         count = Math.Min(count, Size - start);
